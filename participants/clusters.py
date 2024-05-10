@@ -96,7 +96,7 @@ class StakeDistribution(ABC):
         """
         ...
 
-    _sample_cluster: Iterator[Cluster] = None # Default sampler
+    _sample_cluster: Optional[Iterator[Cluster]] = None # Default sampler
 
     @property
     def sample_cluster(self) -> Iterator[Cluster]:
