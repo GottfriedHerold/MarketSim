@@ -4,14 +4,23 @@ from random import Random
 from itertools import accumulate
 """
 This file defines the Cluster class, which is used to represent a cluster of validators.
-In the context our our bribery market, these clusters are the particants to the market (excluding the market maker, who could be a "special" participant)
+In the context our our bribery market, these clusters are the market participants.
+(excluding the market maker, who could be a "special" participant)
 """
 
 
 class Cluster:
   """
     A cluster of validators.
-    Note that we do not actually need to model individual validators.
+    An object of this type models a single market participant.
+    Note that we only model the "static" data for one participant in this class.
+    Dynamic data like "how much did this cluster benefit from the bribery market"
+    are modelled by a dict:Cluster -> Balance, where Balance collects all the data that we
+    care about. We could in principle make the Balance a part of the Cluster type,
+    but this way feels a bit cleaner.
+
+    Note that we do not actually need to model individual validators:
+    we only care about how what clusters there are and how many validators each cluster has.
   """
 
   number_of_validators: int  # number of validators this cluster contains

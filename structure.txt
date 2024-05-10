@@ -1,0 +1,67 @@
+General project structure (tentative):
+
+We have 3 main parts to this project:
+
+The participants module defines the relevant actors to our bribery market:
+This defines the following classes:
+    - Cluster models a single individual market participant
+    - StakeDistribution models the stake distribution.
+        This is, in essence, just a list of all market participants, i.e. a list[Cluster]
+        but has some extra method to allow sampling according to the stake distribution.
+        (The latter models proposer selection)
+
+The market module defines the relevant data that describe the actual market rules.
+This mainly defines the following classes:
+    -  Market (abstract base class)
+    -  Bid (abstract base class)
+    -  Balance
+
+    Here, the Market abstract base class just defines the API that any given implementation needs
+    to have in order for our runner to work.
+    Notably, any given market object should have a set of participant (i.e. cluster placing bribery offers).
+    The participating clusters can place bids in a given market object.
+    The market will then, for a given set of all bids and given who the last-slot-proposer is,
+    calculate the result of the market (i.e. what the last-slot-proposer should do, and who should pay who)
+
+    Market itself is just an abstract base class defining an API. Any concrete market mechanism should
+    derive from Market and implements the actual logic for how the market calculates results in
+    this derived class.
+    In any such derived class, we will have a specific way for the data is required to describe a single
+    bid by a given cluster. This is done by deriving a corresponding class from the Bid class for each such derived
+    Market class. Note that the (abstract) Bid class only serves to act as a type annotation.
+
+    Balance is just a dataclass that collects the various data that we care about for each validator
+    in order to actually evaluate our results.
+    (e.g. how much a given cluster has paid in bribes)
+
+    Since we want to actually simulate how a bribery market evolves, we need to model the fact
+    that the participants' behaviour will change. Concretely for us,
+    behaviour == bid (this is what determines whether a participant actually wants to bribe/be bribed),
+    So this means that their bids will change in response to other participants' bids.
+
+    In our simple model, some participants will just update their bids to benefit themselves the most
+    if they assume that other participants' bids stays the same. Note that the "benefit" is random,
+    because it depends on proposer selection, so we will have to optimize for expected benefit.
+    Now, even if we know what all other participants' behaviour is, determining what the optimal
+    behaviour for a given participant should be is not at all simple and clearly depends on the
+    market mechanism.
+    While some approaches (like Monte-Carlo simulating the expected benefit while trying to modify the current bid)
+    seem rather generic, this ultimately depends so much on the actual market that we include it as
+    part of the API of the abstract base Market class.
+
+ The runner (either main.py or a separate module, not sure yet):
+ This actually "runs" the simulation for a given market:
+ Notably, it takes a
+  - StakeDistribution (which defines the set of participants),
+  - some initial set of bids for each participants
+ We select our first random last-slot-proposer:
+ We then simulate the market evolution epoch-by-epoch:
+ We randomly sample two sets of possible proposers for the next epoch,
+ depending on what the current last-slot proposer acts.
+ The market, together with these data, determines what this last-slot-proposer should do
+ (This also determines the next last-slot-proposer) and determines some payouts.
+ The market also determines how behaviours should change for any participant that want to change behaviour.
+ We then go to the next epoch.
+
+ (NOTE: Observe that the API for StakeDistribution and Market has been selected in such a way
+ that this runner can be written without knowing anything but this API)
