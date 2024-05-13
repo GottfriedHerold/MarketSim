@@ -55,6 +55,16 @@ class Cluster:
         if reputation_factor is not None:
             self.reputation_factor = reputation_factor
 
+    def __lt__(self, other):
+        """
+        comparison operator between clusters.
+        This is solely provided to allow sorting, which helps write test and example code.
+        """
+        other: Cluster
+        if self.number_of_validators == other.number_of_validators:
+            return self.reputation_factor < other.reputation_factor
+        else:
+            return self.number_of_validators < other.number_of_validators
 
 class StakeDistribution(ABC):
     """
@@ -77,6 +87,7 @@ class StakeDistribution(ABC):
     def get_clusters(self) -> list[Cluster]:
         """
         Returns the list of all clusters that comprise this StakeDistribution.
+        This is sorted first by number_of_validators, then by reputation_factor
 
         This may return the actual list of clusters rather than a copy.
         The caller should not modify the returned list and treat it as read-only.
@@ -96,7 +107,7 @@ class StakeDistribution(ABC):
         """
         ...
 
-    _sample_cluster: Optional[Iterator[Cluster]] = None # Default sampler
+    _sample_cluster: Iterator[Cluster]  # Default sampler
 
     @property
     def sample_cluster(self) -> Iterator[Cluster]:
@@ -109,7 +120,9 @@ class StakeDistribution(ABC):
         
         is an infinite loop.
         """
-        if self._sample_cluster is None:
+        if hasattr(self, "_sample_cluster"):
+            return self._sample_cluster
+        else:
             self._sample_cluster = self.new_cluster_sampler(random_source=None)
             return self._sample_cluster
 
@@ -148,11 +161,20 @@ def make_stake_distribution_from_map(stake_map: dict[int, int | Tuple[int, int]]
 
     # NOTE: Calling make_stake_distribution_from_map multiple times will each return a new object of a new type.
     # In particular, if we call it twice as
-    # sd1 = make_stake_distribution_from_map(...)
-    # sd2 = make_stake_distribution_from_map(...)
-    # then sd1 and sd2 wil have a different type: Both type(sd1) are type(sd2) are freshly generated types.
+    #
+    # >>> sd1 = make_stake_distribution_from_map(...)
+    # >>> sd2 = make_stake_distribution_from_map(...)
+    # >>> type(sd1) == type(sd2)
+    # False
+    #
+    # sd1 and sd2 wil have a different type: Both type(sd1) are type(sd2) are freshly generated types, because
+    # each call creates a fresh NewStakeDistribution type. Dito for ClusterWithTotalStake.
     class ClusterWithTotalStake(Cluster):
-        total_number_of_validators: int  # class variable. Will be set later.
+        """
+        This is a new type derived from Cluster that knows the total amount of stake
+        of the StakeDistribution that this cluster is part of.
+        """
+        total_number_of_validators: int  # class variable. Will be set later by NewStakeDistribution.__init__
 
         @property
         def stake_fraction(self) -> float:
@@ -163,11 +185,12 @@ def make_stake_distribution_from_map(stake_map: dict[int, int | Tuple[int, int]]
         locally defined class. make_stake_distribution_from_map will return an instance of this type.
         """
 
-        def __init__(self, stake_map, random_source, reputation_factor,
-                     ClusterWithTotalStake: type):
+        def __init__(self):
+            # embed the arguments passed to make_stake_distribution_from_map into the new instance of
+            # type NewStakeDistribution:
             self.stake_map = stake_map
-            clusters = []
-            # self.random_source = Random() if random_source is None else random_source
+            clusters = []  # We will set self.cluster = clusters below
+
             r = Random() if random_source is None else random_source
             self._sample_cluster = self.new_cluster_sampler(r)
             for cluster_size, count in stake_map.items():
@@ -184,6 +207,7 @@ def make_stake_distribution_from_map(stake_map: dict[int, int | Tuple[int, int]]
                                               reputation_factor=count[1])
                         for _ in range(count[0])
                     ]
+            clusters.sort()
             self.clusters = clusters
 
             self.cluster_sizes = [c.number_of_validators for c in clusters]
@@ -192,19 +216,13 @@ def make_stake_distribution_from_map(stake_map: dict[int, int | Tuple[int, int]]
             ClusterWithTotalStake.total_number_of_validators = sum(
                 [c.number_of_validators for c in clusters])
 
-        def get_clusters(
-                self
-        ) -> list[
-            Cluster]:  # actually a list[ClusterWithTotalStake] for some local type
+        def get_clusters(self) -> list[Cluster]:  # actually a list[ClusterWithTotalStake] for some local type
             return self.clusters
 
-        def new_cluster_sampler(self,
-                                random_source: Optional[Random] = None
-                                ) -> Iterator[Cluster]:
+        def new_cluster_sampler(self, random_source: Optional[Random] = None) -> Iterator[Cluster]:
             r: Random = random_source if random_source is not None else Random()
             while True:
                 yield r.choices(self.clusters,
                                 cum_weights=self.cluster_sizes_cumulated)[0]
 
-    return NewStakeDistribution(stake_map, random_source, reputation_factor,
-                                ClusterWithTotalStake)
+    return NewStakeDistribution()
