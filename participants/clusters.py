@@ -57,7 +57,7 @@ class Cluster:
 
     def __lt__(self, other):
         """
-        comparison operator between clusters.
+        comparison operator < between clusters.
         This is solely provided to allow sorting, which helps write test and example code.
         """
         other: Cluster
@@ -65,6 +65,7 @@ class Cluster:
             return self.reputation_factor < other.reputation_factor
         else:
             return self.number_of_validators < other.number_of_validators
+
 
 class StakeDistribution(ABC):
     """
@@ -97,7 +98,7 @@ class StakeDistribution(ABC):
         ...
 
     @abstractmethod
-    def new_cluster_sampler(self, random_source: Optional[Random] = None) -> Iterator[Cluster]:
+    def new_cluster_sampler(self, randomness_source: Optional[Random] = None) -> Iterator[Cluster]:
         """
         Generator that yields a cluster at random, weighted by stake.
         Note that this is a generator expression, i.e. uses yield.
@@ -123,20 +124,21 @@ class StakeDistribution(ABC):
         if hasattr(self, "_sample_cluster"):
             return self._sample_cluster
         else:
-            self._sample_cluster = self.new_cluster_sampler(random_source=None)
+            self._sample_cluster = self.new_cluster_sampler(randomness_source=None)
             return self._sample_cluster
 
 
 def make_stake_distribution_from_map(stake_map: dict[int, int | Tuple[int, int]],
                                      *,
-                                     random_source: Optional[Random] = None,
+                                     randomness_source: Optional[Random] = None,
                                      reputation_factor: int = 1) -> StakeDistribution:
     """
     Creates a stake distribution from a map {cluster_size -> how many clusters of this size exist}
     If an entry stake_map[i] is a pair such a stake_map[10] == (5,2),
     this is interpreted as 5 clusters of size 10, with each having a  reputation factor of 2.
 
-    random_source is used as the default randomness source to sample from the set of clusters.
+    randomness_source is used as the default randomness source to sample from the set of clusters
+    when using sample_cluster
 
     Example:
         stake_distribution = MakeStakeDistributionFromMap({10: (5,2), 20: (3,1), 100: 1})
@@ -191,7 +193,7 @@ def make_stake_distribution_from_map(stake_map: dict[int, int | Tuple[int, int]]
             self.stake_map = stake_map
             clusters = []  # We will set self.cluster = clusters below
 
-            r = Random() if random_source is None else random_source
+            r = Random() if randomness_source is None else randomness_source
             self._sample_cluster = self.new_cluster_sampler(r)
             for cluster_size, count in stake_map.items():
                 if isinstance(count, int):
@@ -219,8 +221,18 @@ def make_stake_distribution_from_map(stake_map: dict[int, int | Tuple[int, int]]
         def get_clusters(self) -> list[Cluster]:  # actually a list[ClusterWithTotalStake] for some local type
             return self.clusters
 
-        def new_cluster_sampler(self, random_source: Optional[Random] = None) -> Iterator[Cluster]:
-            r: Random = random_source if random_source is not None else Random()
+        # Note: custom_randomness_source, given to this function, is independent of
+        # randomness_source given to make_stake_distribution_from_map.
+        # Notably, we can use
+        # SD = make_stake_distribution_from_map(..., randomness_source = r1)
+        # default_sampler = SD.sample_cluster
+        # custom_sampler = SD.new_cluster_sampler(..., randomness_source = r2)
+        # In this construction, the intended behaviour is that
+        # default_sampler uses r1, custom_sampler uses r2
+        def new_cluster_sampler(self, randomness_source: Optional[Random] = None) -> Iterator[Cluster]:
+            # NOTE: randomness_source shadows name given to make_stake_distribution_from_map.
+            # This is unfortunate, but hard to avoid.
+            r: Random = randomness_source if randomness_source is not None else Random()
             while True:
                 yield r.choices(self.clusters,
                                 cum_weights=self.cluster_sizes_cumulated)[0]

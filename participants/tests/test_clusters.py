@@ -34,16 +34,18 @@ def test_make_stake_distribution_from_map():
     assert [c.number_of_validators for c in clusters] == [10, 10, 10, 10, 10, 20, 20, 20, 100]
     assert [c.reputation_factor for c in clusters] == [2, 2, 2, 2, 2, 1.0, 1.0, 1.0, 1.0]
 
+    for c in clusters:
+        assert abs(c.stake_fraction - c.number_of_validators/210) < 0.0001
+
     # itertools.islice(iterator, number) returns (an iterator that yields) number many samples from iterator.
     # This may be used to be able to write a simple for-loop, such as
     # for c in itertools.islice(SD.sample_cluster, number):
     #   ...
     #
     # Here, we just get a list.
-
     number_of_samples = 50000
-
     some_sampled_clusters = list(itertools.islice(SD.sample_cluster, number_of_samples))
+
     assert len(some_sampled_clusters) == number_of_samples
     for c in some_sampled_clusters:
         assert c in clusters
