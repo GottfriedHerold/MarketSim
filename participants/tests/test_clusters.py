@@ -82,8 +82,3 @@ def test_make_stake_distribution_from_map():
     samples2 = list(itertools.islice(sampler2, 200))
     samples3 = list(itertools.islice(sampler1, 100))
     assert samples1 + samples3 == samples2
-
-
-
-
-
