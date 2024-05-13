@@ -13,6 +13,9 @@ class Balance:
     A Balance keeps track of all payments and earnings that an individual market participant has accrued.
     We encapsulate this is in a dataclass to differentiate sources of earnings/payments.
 
+    This is meant to capture all gains/losses of the participants compared to a situation where no
+    bribery market existed.
+
     Note that not all of that data is needed for the simulation. Separating different costs within this balance
     serves mostly to be able to analyze what is happening better.
     """
@@ -37,6 +40,8 @@ class Balance:
     # (it also would allow making this dynamic)
     participated: bool = False  # did the participant ever enter the market?
 
+    # NOTE: Any cut taken by the market maker is accounted for by transaction_costs
+
     # The following
     #   total_balance
     #   reputation_cost
@@ -47,9 +52,11 @@ class Balance:
     def total_balance(self) -> int | float:
         """
         returns the total amount that the participant has earned from the market.
-        This is positive for gains, negative from losses.
-        Note that even a participant that has never engaged with the market may have a non-zero (negative) value here:
+        This is positive for gains, negative for losses.
+        Note that even a participant that has never engaged with the market may have a non-zero value here:
         This happens if that participant has one of its slots stolen due the market.
+        Also, it may happen that a participant gains a slot (randomly, essentially) by
+        being in the winning A_miss - side of the bet, even if that participated never actually actively engaged.
         """
         return (self.received - self.payed - self.capital_cost - self.transaction_costs
                 + self.extra_slot_earnings - self.extra_slot_costs - self.reputation_cost)
@@ -81,7 +88,7 @@ class Market(ABC):
     # NOTE: participants includes clusters that have never placed a bid.
     # The reason is that those participants are affected by the market nonetheless.
 
-    # maybe get rid of that? It's available as balance_sheet.keys() or list(balance_sheet.keys()) anyway.
+    # maybe get rid of that? It's available as balance_sheets.keys() or list(balance_sheets.keys()) anyway.
     participants: list[Cluster]  # list of participants in the market.
 
     balance_sheets: dict[Cluster, Balance]  # balance sheet of every participant.
@@ -89,6 +96,10 @@ class Market(ABC):
     stake_dist: StakeDistribution  # Stake distribution object.
     # This is used to sample the two sides of the bidding market.
     EPOCH_SIZE: int = 32  # number of validators that bid against each other per epoch. This is a class variable.
+
+    @property
+    def participants(self) -> list[Cluster]:
+        return list(self.balance_sheets.keys())
 
     @abstractmethod
     def place_bid(self, bid: Bid, cluster: Cluster) -> Tuple[int, int, int]:
@@ -118,7 +129,7 @@ class Market(ABC):
         """
         Samples the two sides of the bidding market in order (reveal, miss).
         random_source is used to select the randomness source for the sampling;
-        by default, we use the one stored in stake_dist itself.
+        by default, we use the default one from stake_dist itself via stake_dist.sample_cluster.
         """
         if randomness_source is None:
             sampler = self.stake_dist.sample_cluster
