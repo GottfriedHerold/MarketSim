@@ -16,6 +16,10 @@ class Balance:
     Note that not all of that data is needed for the simulation. Separating different costs within this balance
     serves mostly to be able to analyze what is happening better.
     """
+
+    # NOTE: The list here is **not** just a comment, because the @dataclass
+    # actually parses this and generates code from it.
+
     payed: int = 0  # total amount paid to other (as bribes)
     received: int = 0  # total amount received from others (as bribes)
     capital_locked: int = 0  # current amount of capital that needs to be locked down in order to participate
