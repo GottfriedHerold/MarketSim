@@ -1,9 +1,10 @@
 from abc import ABC, abstractmethod
-from typing import Any, Tuple, Optional
-from participants import Cluster, StakeDistribution
 from dataclasses import dataclass
-from random import Random
 from itertools import islice
+from random import Random
+from typing import Any, Optional, Tuple
+
+from participants import Cluster, StakeDistribution
 
 
 @dataclass(kw_only=True)
