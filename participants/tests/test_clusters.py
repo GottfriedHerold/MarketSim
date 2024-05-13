@@ -17,9 +17,11 @@
 # def test_foo():
 #     assert False
 
-from participants import Cluster, StakeDistribution, make_stake_distribution_from_map
 import itertools
 import random
+
+from participants import Cluster, StakeDistribution, make_stake_distribution_from_map
+
 
 # Example code how to use make_stake_distribution_from_map
 def test_make_stake_distribution_from_map():
