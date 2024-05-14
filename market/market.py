@@ -105,7 +105,7 @@ class Market(ABC):
     def participants(self) -> list[Cluster]:
         return list(self.balance_sheets.keys())
 
-    def make_payment(self, sender: Cluster, receiver: Cluster, amount: int | float):
+    def make_payment(self, sender: Cluster, receiver: Cluster, amount: int):
         """
         Pays amount from sender to receiver.
         Both sender and receiver must be among the market participants.
