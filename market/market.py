@@ -7,6 +7,10 @@ from typing import Any, Optional, Tuple
 from participants import Cluster, StakeDistribution
 
 
+# @dataclass(ky_only=True) allows to initialize a Balance like
+# balance = Balance(payed=10, received=20).
+# We only allow key-value passing, because passing a list of numbers would just be confusing what they mean.
+# and the order is not canonical.
 @dataclass(kw_only=True)
 class Balance:
     """
@@ -100,6 +104,24 @@ class Market(ABC):
     @property
     def participants(self) -> list[Cluster]:
         return list(self.balance_sheets.keys())
+
+    def make_payment(self, sender: Cluster, receiver: Cluster, amount: int | float):
+        """
+        Pays amount from sender to receiver.
+        Both sender and receiver must be among the market participants.
+        """
+        assert sender in self.balance_sheets
+        assert receiver in self.balance_sheets
+        assert amount >= 0
+
+        # We only allow payments between participants that have the participated flag set.
+        # This is just a sanity check for correct usage.
+        assert self.balance_sheets[sender].participated
+        assert self.balance_sheets[receiver].participated
+
+        self.balance_sheets[sender].payed += amount
+        self.balance_sheets[receiver].received += amount
+
 
     @abstractmethod
     def place_bid(self, bid: Bid, cluster: Cluster) -> Tuple[int, int, int]:
