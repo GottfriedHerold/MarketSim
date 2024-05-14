@@ -123,11 +123,33 @@ class Market(ABC):
         self.balance_sheets[receiver].received += amount
 
 
-    @abstractmethod
-    def place_bid(self, bid: Bid, cluster: Cluster) -> Tuple[int, int, int]:
+
+    def place_bid(self, bid: Bid, cluster: Cluster):
         """
-        call to have the given cluster place a bid.
-        Returns the tuple (transaction_cost, capital_cost, new_reputation).
+        Call place_to_bid to have the given cluster place a bid.
+        This replaces any previous bid that the cluster had active.
+
+        Calling this automatically updates the balance sheet of the cluster using
+        cost_for_bid.
+
+        Note: derived classes may overwrite this method.
+        """
+
+        # This just implements some common logic that a derived class may call via super()
+        assert cluster in self.participants
+        self.standing_bids[cluster] = bid
+        self.balance_sheets[cluster].participated = True
+
+        # process cost of placing bid
+        transaction_cost, capital_cost, new_reputation = self.cost_for_bid(bid)
+        self.balance_sheets[cluster].transaction_costs += transaction_cost
+        self.balance_sheets[cluster].capital_cost = capital_cost
+        self.balance_sheets[cluster].reputation = new_reputation
+
+    @abstractmethod
+    def cost_for_bid(self, bid: Bid) -> Tuple[int, int, int]:
+        """
+        This is called whenever a cluster places a bid.
         Here,
           - transaction_cost is the cost the cluster has to pay to actually place the bid.
           - capital_cost is the total amount of capital that the cluster needs to have locked down after having
@@ -166,3 +188,20 @@ class Market(ABC):
         returns the balance sheet of the given cluster.
         """
         return self.balance_sheets[cluster]
+
+
+class DummyMarket(Market):
+    """
+    Dummy implementation of Market that just serves testing purposes.
+    For this, bids are actually "empty" messages without any semantics.
+    This means we can use the (empty) Bid class directly without deriving from it.
+    """
+    def cost_for_bid(self, bid: Bid) -> Tuple[int, int, int]:
+        """
+        Placing a bid does nothing, but costs the bidder 1 unit of transaction cost
+        and puts the capital cost at 10 and the
+        """
+        return 1, 10, 5
+
+    def get_best_bid(self, cluster: Cluster) -> Bid:
+        return Bid()
