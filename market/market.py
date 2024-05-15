@@ -6,7 +6,6 @@ from typing import Any, Optional, Tuple
 
 from participants import Cluster, StakeDistribution
 
-
 # @dataclass(ky_only=True) allows to initialize a Balance like
 # balance = Balance(payed=10, received=20).
 # We only allow key-value passing, because passing a list of numbers would just be confusing what they mean.
@@ -122,8 +121,6 @@ class Market(ABC):
         self.balance_sheets[sender].payed += amount
         self.balance_sheets[receiver].received += amount
 
-
-
     def place_bid(self, bid: Bid, cluster: Cluster):
         """
         Call place_to_bid to have the given cluster place a bid.
@@ -182,6 +179,55 @@ class Market(ABC):
         reveal_side = list(islice(sampler, self.EPOCH_SIZE))
         miss_side = list(islice(sampler, self.EPOCH_SIZE))
         return reveal_side, miss_side
+
+    def get_auction_winner(self, *, reveal_side: list[Cluster] = None, miss_side: list[Cluster],
+                                 randomness_source: Optional[Random] = None) -> str:
+        """
+        Determines the winner of the bidding auction according to the bribery market's rules.
+        The bidding is between the reveal_side and the miss_side.
+        If both sides are set to None, we sample them newly.
+        randomness_source is taken as a source of randomness, if needed. A value of None selects
+        a default.
+
+        The returned value is either "miss" or "reveal"
+        """
+
+        # This method just does some common argument pre-processing and hands off to _determine_auction_winner.
+
+        # Take a default randomness source if None was provided.
+        # Note that we don't overwrite randomness_source itself, but rather create a new variable.
+        # The reason for that is that None has a special meaning for self.sample_sides
+        # (notably take stake_dist.sample_cluster), which is subtly different from using Random(),
+        # so we need to preserve that.
+        real_randomness_source: Random
+        if randomness_source is None:
+            real_randomness_source = Random()
+        else:
+            real_randomness_source = randomness_source
+        if reveal_side is None and miss_side is None:
+            # Note: We use randomness_source, not real_randomness_source here.
+            reveal_side, miss_side = self.sample_sides(randomness_source=randomness_source)
+        # handle the cases where only one of reveal_side and miss_side was None.
+        if reveal_side is None:
+            raise ValueError("reveal_side was None, but miss_side was not. We do not support this at the moment")
+        if miss_side is None:
+            raise ValueError("miss_side was None, but reveal_side was not. We do not support this at the moment")
+        # maybe delete this, if it is too slow?
+        for c in reveal_side:
+            assert c in self.participants
+        for c in miss_side:
+            assert c in self.participants
+        return self._determine_auction_winner(reveal_side, miss_side, real_randomness_source)
+
+    @abstractmethod
+    def _determine_auction_winner(self, reveal_side: list[Cluster], miss_side: list[Cluster],
+                                  randomness_source: Random) -> str:
+        """
+        actual implementation of get_auction_winner.
+        This needs to be overridden in a base class.
+
+        Returns either "miss" or "reveal".
+        """
 
     def get_balance_sheet(self, cluster: Cluster) -> Balance:
         """
