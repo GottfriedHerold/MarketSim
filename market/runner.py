@@ -12,7 +12,6 @@ from .market import Cluster, Market
 # than this.
 DEFAULT_PROPOSER_SLOT_VALUE = 100
 
-
 class Runner:
     """
     This class actually run our simulation.
@@ -38,7 +37,7 @@ class Runner:
 
     def __init__(self, market: Market, *, locked_capital_cost_per_epoch: float,
                  randomness_source: Random = None, initial_last_slot_proposer: Optional[Cluster] = None,
-                 initial_bids = None):
+                 initial_bids=None):
         self.market = market
         self.locked_capital_cost_per_epoch = locked_capital_cost_per_epoch
 
@@ -82,7 +81,7 @@ class Runner:
         next epochs' proposers (this is what this market is about).
         This part of a slot's value is NOT the job of this method.
         """
-        return [self.DEFAULT_PROPOSER_SLOT_VALUE] * len(proposers)
+        return [DEFAULT_PROPOSER_SLOT_VALUE] * len(proposers)
 
     def process_epoch(self, market: Market):
         """

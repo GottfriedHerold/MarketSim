@@ -6,6 +6,7 @@ from typing import Any, Optional, Tuple
 
 from participants import Cluster, StakeDistribution
 
+
 # @dataclass(ky_only=True) allows to initialize a Balance like
 # balance = Balance(payed=10, received=20).
 # We only allow key-value passing, because passing a list of numbers would just be confusing what they mean.

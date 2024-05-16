@@ -1,7 +1,7 @@
-from typing import Tuple, Optional, Iterator
 from abc import ABC, abstractmethod
-from random import Random
 from itertools import accumulate
+from random import Random
+from typing import Iterator, Optional, Tuple
 
 """
 This file defines the Cluster class, which is used to represent a cluster of validators.
