@@ -91,18 +91,18 @@ class Market(ABC):
     # NOTE: participants includes clusters that have never placed a bid.
     # The reason is that those participants are affected by the market nonetheless.
 
-    # maybe get rid of that? It's available as balance_sheets.keys() or list(balance_sheets.keys()) anyway.
-    participants: list[Cluster]  # list of participants in the market.
+    _participants: list[Cluster]  # list of participants in the market.
+    # This is determined by stake_dist
 
     balance_sheets: dict[Cluster, Balance]  # balance sheet of every participant.
-    standing_bids: dict[Cluster, Bid]  # current bid by the given participant
+    standing_bids: dict[Cluster, Bid | None]  # current bid by the given participant
     stake_dist: StakeDistribution  # Stake distribution object.
     # This is used to sample the two sides of the bidding market.
-    EPOCH_SIZE: int = 32  # number of validators that bid against each other per epoch. This is a class variable.
 
-    @property
-    def participants(self) -> list[Cluster]:
-        return list(self.balance_sheets.keys())
+    EPOCH_SIZE: int = 32  # number of validators per bidding side that bid against each other per epoch.
+
+
+
 
     def make_payment(self, sender: Cluster, receiver: Cluster, amount: int):
         """
@@ -127,27 +127,96 @@ class Market(ABC):
         This replaces any previous bid that the cluster had active.
 
         Calling this automatically updates the balance sheet of the cluster using
-        cost_for_bid.
+        cost_for_bid unless bid is None.
 
         Note: derived classes may overwrite this method.
         """
 
         # This just implements some common logic that a derived class may call via super()
-        assert cluster in self.participants
+        assert cluster in self._participants
         self.standing_bids[cluster] = bid
-        self.balance_sheets[cluster].participated = True
-
+        if bid is not None:
+            self.balance_sheets[cluster].participated = True
         # process cost of placing bid
         transaction_cost, capital_cost, new_reputation = self.cost_for_bid(bid)
         self.balance_sheets[cluster].transaction_costs += transaction_cost
         self.balance_sheets[cluster].capital_cost = capital_cost
         self.balance_sheets[cluster].reputation = new_reputation
 
-    @abstractmethod
-    def cost_for_bid(self, bid: Bid) -> Tuple[int, int, int]:
+    def __init__(self, stake_dist: StakeDistribution, *, epoch_size: Optional[int] = None,
+                 initial_bids: dict[Cluster, Bid] = None,
+                 initial_bid_func=None,
+                 initial_balances: Optional[dict[Cluster, Balance]] = None,
+                 pay_for_initial_bids: Optional[bool] = None):
         """
-        This is called whenever a cluster places a bid.
-        Here,
+        Initialize an instance of market with the given StakeDistribution stake_dist.
+        If initial_balances is not None, it is used to initial the balances; otherwise
+        the balances are initialized to a default of 0.
+
+        The initial bids are initialized to None unless either
+        initial_bid_func or initial_balances are set (only one is allowed):
+            if initial_bids is not None, those are used to initialize the bids.
+            if initial_bid_func is not None, we initialize the bids as initial_bid_func().
+        The intended use case for the latter is using a type derived from Bid as a constructor.
+        During initialization of bids, we also modify the balances (after balances are initialized as per the above),
+        if pay_for_initial_bids is set.
+        The default value for pay_for_initial_bids is True if initial_bids is provided,
+        otherwise False (this includes the case of providing  an initial_bid_func).
+        epoch_size overrides the default epoch_size.
+        """
+        if epoch_size is not None:
+            self.EPOCH_SIZE = epoch_size
+        self.stake_dist = stake_dist
+        self._participants = stake_dist.get_clusters()
+        if initial_balances is None:
+            self.balance_sheets = {c: Balance() for c in self._participants}
+        else:
+            self.balance_sheets = initial_balances
+
+        # Needs to be set before we potentially call self.place_bid.
+        # The reason is that self.place_bid may look at the previously active bid
+        # to compute transaction costs.
+        self.standing_bids = {c: None for c in self._participants}
+
+        if initial_bids is not None and initial_bid_func is not None:
+            raise ValueError("both initial_bids and initial_bid_func was provided")
+
+        if pay_for_initial_bids is None:
+            if initial_bids is not None:
+                pay_for_initial_bids = True
+            else:
+                pay_for_initial_bids = False
+
+        if initial_bid_func is not None:
+            if pay_for_initial_bids:
+                for c in self._participants:
+                    self.place_bid(initial_bid_func(), c)
+            else:
+                self.standing_bids = {c: initial_bid_func() for c in self._participants}
+
+        if initial_bids is not None:
+            if pay_for_initial_bids:
+                for c in self._participants:
+                    self.place_bid(initial_bids[c], c)
+            else:
+                # copy dict. We use this way to copy to align with the above.
+                self.standing_bids = {c: initial_bids[c] for c in self._participants}
+
+    @property
+    def participants(self):
+        return self._participants
+
+
+    @abstractmethod
+    def cost_for_bid(self, old_bid: Bid | None, new_bid: Bid | None) -> Tuple[int, int, int]:
+        """
+        This is called whenever a cluster places a new bid to replace the old one.
+        It returns the cost for the cluster placing a bid of doing so.
+        If old_bid is None and new_bid is None, this function must return 0, 0, 0.
+        (We do not guarantee to even call this).
+        If old_bid is None, this is the initial bid
+        if new_bid is None, this means "withdraw" from the market (so capital_cost should be 0)
+        For the returned values:
           - transaction_cost is the cost the cluster has to pay to actually place the bid.
           - capital_cost is the total amount of capital that the cluster needs to have locked down after having
             placed the bid.
@@ -156,6 +225,8 @@ class Market(ABC):
         Note that transaction_cost needs to be *added* to the previous value in balance of the cluster.
         By contrast, capital_cost and new_reputation *overwrite* the previous value.
         """
+        if old_bid is None and new_bid is None:
+            return 0, 0, 0
         ...
 
     @abstractmethod
@@ -214,9 +285,9 @@ class Market(ABC):
             raise ValueError("miss_side was None, but reveal_side was not. We do not support this at the moment")
         # maybe delete this, if it is too slow?
         for c in reveal_side:
-            assert c in self.participants
+            assert c in self._participants
         for c in miss_side:
-            assert c in self.participants
+            assert c in self._participants
         return self._determine_auction_winner(reveal_side, miss_side, real_randomness_source)
 
     @abstractmethod
@@ -242,12 +313,22 @@ class DummyMarket(Market):
     For this, bids are actually "empty" messages without any semantics.
     This means we can use the (empty) Bid class directly without deriving from it.
     """
-    def cost_for_bid(self, bid: Bid) -> Tuple[int, int, int]:
+    def cost_for_bid(self, old_bid: Bid | None, new_bid: Bid | None) -> Tuple[int, int, int]:
         """
         Placing a bid does nothing, but costs the bidder 1 unit of transaction cost
-        and puts the capital cost at 10 and the
+        and puts the capital cost at 10 and the reputation loss at 5.
+        Withdrawing costs 1 and leaves the reputation loss at 1.
         """
+        if old_bid is None and new_bid is None:
+            return 0, 0, 0
+        if new_bid is None:
+            return 1, 0, 1
         return 1, 10, 5
 
     def get_best_bid(self, cluster: Cluster) -> Bid:
         return Bid()
+
+    def _determine_auction_winner(self, reveal_side: list[Cluster], miss_side: list[Cluster],
+                                  randomness_source: Random) -> str:
+        # Just answer at random
+        return randomness_source.choice(("miss", "reveal"))
