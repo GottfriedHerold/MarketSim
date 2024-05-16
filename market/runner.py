@@ -1,5 +1,6 @@
 from .market import Cluster, Market
 
+
 class Runner:
     """
     This class actually run our simulation.
