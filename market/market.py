@@ -306,8 +306,8 @@ class Market(ABC):
             raise ValueError("miss_side was None, but reveal_side was not. We do not support this at the moment")
 
         # sanity check. Maybe delete this, if it is too slow?
-        assert all([c in self.participants for c in reveal_side])
-        assert all([c in self.participants for c in miss_side])
+        assert all(c in self.participants for c in reveal_side)
+        assert all(c in self.participants for c in miss_side)
         return self._determine_auction_winner(reveal_side, miss_side, real_randomness_source)
 
     @abstractmethod
