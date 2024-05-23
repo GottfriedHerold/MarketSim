@@ -21,10 +21,10 @@ class Balance:
     bribery market existed.
 
     Note that not all of that data is needed for the simulation. Separating different costs within this balance
-    serves mostly to be able to analyze what is happening better.
+    serves mostly to be better able to analyze what is happening.
     """
 
-    # NOTE: The list here is **not** just a comment, because the @dataclass
+    # NOTE: Entries without a value (i.e. type hints) in this are **not** just comments, because the @dataclass
     # actually parses this and generates code from it.
 
     payed: int = 0  # total amount paid to other (as bribes)
@@ -94,16 +94,15 @@ class Market(ABC):
 
     _participants: list[Cluster]  # list of participants in the market.
     # This is determined by stake_dist
+    # access this via the participants @property
 
     balance_sheets: dict[Cluster, Balance]  # balance sheet of every participant.
-    standing_bids: dict[Cluster, Bid | None]  # current bid by the given participant
+    standing_bids: dict[Cluster, Bid | None]  # current bid by the given participant.
+    # standing_bids[c] == None means that c never placed a bid.
     stake_dist: StakeDistribution  # Stake distribution object.
     # This is used to sample the two sides of the bidding market.
 
     EPOCH_SIZE: int = 32  # number of validators per bidding side that bid against each other per epoch.
-
-
-
 
     def make_payment(self, sender: Cluster, receiver: Cluster, amount: int):
         """
@@ -133,13 +132,18 @@ class Market(ABC):
         Note: derived classes may overwrite this method.
         """
 
-        # This just implements some common logic that a derived class may call via super()
-        assert cluster in self._participants
+        # This place_bid method just implements some common logic that a derived class may call via super()
+
+        assert cluster in self.participants
+        old_bid = self.standing_bids[cluster]
         self.standing_bids[cluster] = bid
+
+        # flag the participant as having placed a bid.
         if bid is not None:
             self.balance_sheets[cluster].participated = True
+
         # process cost of placing bid
-        transaction_cost, capital_cost, new_reputation = self.cost_for_bid(bid)
+        transaction_cost, capital_cost, new_reputation = self.cost_for_bid(old_bid=old_bid, new_bid=bid)
         self.balance_sheets[cluster].transaction_costs += transaction_cost
         self.balance_sheets[cluster].capital_cost = capital_cost
         self.balance_sheets[cluster].reputation = new_reputation
@@ -151,72 +155,85 @@ class Market(ABC):
                  pay_for_initial_bids: Optional[bool] = None):
         """
         Initialize an instance of market with the given StakeDistribution stake_dist.
-        If initial_balances is not None, it is used to initial the balances; otherwise
-        the balances are initialized to a default of 0.
+        If initial_balances is not None, it is used to initialize the balances (by copy);
+        otherwise the balances are initialized to a default of 0.
 
         The initial bids are initialized to None unless either
         initial_bid_func or initial_balances are set (only one is allowed):
-            if initial_bids is not None, those are used to initialize the bids.
+            if initial_bids is not None, those are used to initialize the bids (by copy).
             if initial_bid_func is not None, we initialize the bids as initial_bid_func().
         The intended use case for the latter is using a type derived from Bid as a constructor.
-        During initialization of bids, we also modify the balances (after balances are initialized as per the above),
-        if pay_for_initial_bids is set.
-        The default value for pay_for_initial_bids is True if initial_bids is provided,
-        otherwise False (this includes the case of providing  an initial_bid_func).
+
+        If pay_for_initial_bids is set, we place the initial bids via place_bid. This
+        will modify the balances. If pay_for_initial_bids is not set, we directly overwrite the bids without
+        modifying the balances.
+        pay_for_initial_bids is True by default unless a non-None value if provided for initial_balances.
+        In this case, we require the caller to set pay_for_initial_bids explicitly.
+
+        (NOTE: if we initialize with a bid of None, place_bid is required to be a no-op.
+        If initial_balances are requested, this can lead to unexpected results: e.g. initial_balances might
+        set some value for reputation / capital_locked for a cluster c. If the bid for this cluster is None,
+        the value for reputation and capital_locked are not zeroed. This should be avoided by the caller.)
+
         epoch_size overrides the default epoch_size.
         """
-        if epoch_size is not None:
-            self.EPOCH_SIZE = epoch_size
-        self.stake_dist = stake_dist
-        self._participants = stake_dist.get_clusters()
-        if initial_balances is None:
-            self.balance_sheets = {c: Balance() for c in self._participants}
-        else:
-            self.balance_sheets = initial_balances
-
-        # Needs to be set before we potentially call self.place_bid.
-        # The reason is that self.place_bid may look at the previously active bid
-        # to compute transaction costs.
-        self.standing_bids = {c: None for c in self._participants}
 
         if initial_bids is not None and initial_bid_func is not None:
             raise ValueError("both initial_bids and initial_bid_func was provided")
 
+        if initial_balances is not None and pay_for_initial_bids is None:
+            raise ValueError("A value for initial_balances was provided. "
+                             "In this case, pay_for_initial_bids must be set explicitly")
         if pay_for_initial_bids is None:
-            if initial_bids is not None:
-                pay_for_initial_bids = True
-            else:
-                pay_for_initial_bids = False
+            pay_for_initial_bids = True
 
+        if epoch_size is not None:
+            self.EPOCH_SIZE = epoch_size
+        self.stake_dist = stake_dist
+        self._participants = stake_dist.get_clusters()  # Use a property-setter to inform derived classes?
+
+        # Initialize balance_sheets. We need to set self.balance_sheets[c] for every c
+        # because calls to self.place_bide below would fail otherwise.
+        if initial_balances is None:
+            self.balance_sheets = {c: Balance() for c in self._participants}
+        else:
+            self.balance_sheets = initial_balances.copy()
+
+        # self.standing_bids needs to be set before we potentially call self.place_bid.
+        # The reason is that self.place_bid may look at the previously active bid
+        # to compute transaction costs.
+        # self.standing_bids[c] == None means that c has no active bid.
+        self.standing_bids = {c: None for c in self._participants}
+
+        # NOTE: self.place_bid(bid, c) is required to be a no-op if bid is None
         if initial_bid_func is not None:
             if pay_for_initial_bids:
-                for c in self._participants:
+                for c in self.participants:
                     self.place_bid(initial_bid_func(), c)
             else:
                 self.standing_bids = {c: initial_bid_func() for c in self._participants}
 
         if initial_bids is not None:
             if pay_for_initial_bids:
-                for c in self._participants:
+                for c in self.participants:
                     self.place_bid(initial_bids[c], c)
             else:
-                # copy dict. We use this way to copy to align with the above.
-                self.standing_bids = {c: initial_bids[c] for c in self._participants}
+                self.standing_bids = initial_bids.copy()
 
     @property
     def participants(self):
         return self._participants
 
-
     @abstractmethod
     def cost_for_bid(self, old_bid: Bid | None, new_bid: Bid | None) -> Tuple[int, int, int]:
         """
         This is called whenever a cluster places a new bid to replace the old one.
-        It returns the cost for the cluster placing a bid of doing so.
+        It returns the cost for the cluster placing a bid as a 3-tuple
+        (transaction_cost, capital_cost, new_reputation)
         If old_bid is None and new_bid is None, this function must return 0, 0, 0.
         (We do not guarantee to even call this).
-        If old_bid is None, this is the initial bid
-        if new_bid is None, this means "withdraw" from the market (so capital_cost should be 0)
+        If old_bid is None, we have no previous bid.
+        if new_bid is None, this means "withdraw" from the market (so returned capital_cost should be 0)
         For the returned values:
           - transaction_cost is the cost the cluster has to pay to actually place the bid.
           - capital_cost is the total amount of capital that the cluster needs to have locked down after having
@@ -225,6 +242,8 @@ class Market(ABC):
 
         Note that transaction_cost needs to be *added* to the previous value in balance of the cluster.
         By contrast, capital_cost and new_reputation *overwrite* the previous value.
+
+        This function must be overwritten by a derived class.
         """
         if old_bid is None and new_bid is None:
             return 0, 0, 0
@@ -242,7 +261,7 @@ class Market(ABC):
         """
         Samples the two sides of the bidding market in order (reveal, miss).
         random_source is used to select the randomness source for the sampling;
-        by default, we use the default one from stake_dist itself via stake_dist.sample_cluster.
+        by default, we use the randomness source from stake_dist itself via stake_dist.sample_cluster.
         """
         if randomness_source is None:
             sampler = self.stake_dist.sample_cluster
@@ -253,11 +272,11 @@ class Market(ABC):
         return reveal_side, miss_side
 
     def get_auction_winner(self, *, reveal_side: list[Cluster] = None, miss_side: list[Cluster],
-                                 randomness_source: Optional[Random] = None) -> str:
+                           randomness_source: Optional[Random] = None) -> str:
         """
         Determines the winner of the bidding auction according to the bribery market's rules.
         The bidding is between the reveal_side and the miss_side.
-        If both sides are set to None, we sample them newly.
+        If both sides are set to None, we sample them freshly.
         randomness_source is taken as a source of randomness, if needed. A value of None selects
         a default.
 
@@ -276,6 +295,7 @@ class Market(ABC):
             real_randomness_source = Random()
         else:
             real_randomness_source = randomness_source
+
         if reveal_side is None and miss_side is None:
             # Note: We use randomness_source, not real_randomness_source here.
             reveal_side, miss_side = self.sample_sides(randomness_source=randomness_source)
@@ -284,11 +304,10 @@ class Market(ABC):
             raise ValueError("reveal_side was None, but miss_side was not. We do not support this at the moment")
         if miss_side is None:
             raise ValueError("miss_side was None, but reveal_side was not. We do not support this at the moment")
-        # maybe delete this, if it is too slow?
-        for c in reveal_side:
-            assert c in self._participants
-        for c in miss_side:
-            assert c in self._participants
+
+        # sanity check. Maybe delete this, if it is too slow?
+        assert all([c in self.participants for c in reveal_side])
+        assert all([c in self.participants for c in miss_side])
         return self._determine_auction_winner(reveal_side, miss_side, real_randomness_source)
 
     @abstractmethod
@@ -314,6 +333,7 @@ class DummyMarket(Market):
     For this, bids are actually "empty" messages without any semantics.
     This means we can use the (empty) Bid class directly without deriving from it.
     """
+
     def cost_for_bid(self, old_bid: Bid | None, new_bid: Bid | None) -> Tuple[int, int, int]:
         """
         Placing a bid does nothing, but costs the bidder 1 unit of transaction cost
