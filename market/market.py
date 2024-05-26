@@ -272,7 +272,7 @@ class Market(ABC):
         return reveal_side, miss_side
 
     def get_auction_winner(self, *, reveal_side: list[Cluster] = None, miss_side: list[Cluster],
-                           randomness_source: Optional[Random] = None) -> str:
+                           randomness_source: Optional[Random] = None) -> Tuple[str, dict[Cluster, int|float]]:
         """
         Determines the winner of the bidding auction according to the bribery market's rules.
         The bidding is between the reveal_side and the miss_side.
@@ -280,7 +280,8 @@ class Market(ABC):
         randomness_source is taken as a source of randomness, if needed. A value of None selects
         a default.
 
-        The returned value is either "miss" or "reveal"
+        The first returned value is either "miss" or "reveal"
+        The second returned value is a dict Cluster -> amount that needs to be paid to the last-slot-proposer.
         """
 
         # This method just does some common argument pre-processing and hands off to _determine_auction_winner.
@@ -312,7 +313,7 @@ class Market(ABC):
 
     @abstractmethod
     def _determine_auction_winner(self, reveal_side: list[Cluster], miss_side: list[Cluster],
-                                  randomness_source: Random) -> str:
+                                  randomness_source: Random) -> Tuple[str, dict[Cluster, int|float]]:
         """
         actual implementation of get_auction_winner.
         This needs to be overridden in a base class.
@@ -350,6 +351,6 @@ class DummyMarket(Market):
         return Bid()
 
     def _determine_auction_winner(self, reveal_side: list[Cluster], miss_side: list[Cluster],
-                                  randomness_source: Random) -> str:
+                                  randomness_source: Random) -> Tuple[str, dict[Cluster, int|float]]:
         # Just answer at random
         return randomness_source.choice(("miss", "reveal"))

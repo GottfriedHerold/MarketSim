@@ -1,3 +1,4 @@
+import random
 from typing import Optional, Dict
 from random import Random
 
@@ -11,6 +12,7 @@ from .market import Cluster, Market, Bid
 # We could (should?) set it to 1, but then we would need to use floats when considering monetary values smaller
 # than this.
 DEFAULT_PROPOSER_SLOT_VALUE = 100
+
 
 class Runner:
     """
@@ -34,9 +36,11 @@ class Runner:
     market: Market
     randomness_source: Random  # defaults to Random()
     last_slot_proposer: Cluster
+    proposer_slot_value = DEFAULT_PROPOSER_SLOT_VALUE
 
     def __init__(self, market: Market, *, locked_capital_cost_per_epoch: float,
-                 randomness_source: Random = None, initial_last_slot_proposer: Optional[Cluster] = None):
+                 randomness_source: Random = None, initial_last_slot_proposer: Optional[Cluster] = None,
+                 proposer_slot_value = None):
         """
         initialize an instance of Runner, which holds the state of our simulation (including a market state).
         Note that the separation of the Runner's state and the Market's state is somewhat fuzzy and not really
@@ -67,7 +71,10 @@ class Runner:
                 raise ValueError("Must set locked_capital_cost_per_epoch")
 
         if locked_capital_cost_per_epoch is not None:
-            self.locked_capital_cost_per_epoch = locked_capital_cost_per_epoch  #
+            self.locked_capital_cost_per_epoch = locked_capital_cost_per_epoch
+
+        if proposer_slot_value is not None:
+            self.proposer_slot_value = proposer_slot_value
 
         # randomness source:
         if randomness_source is None:
@@ -82,11 +89,6 @@ class Runner:
             self.last_slot_proposer = initial_last_slot_proposer
 
         assert initial_last_slot_proposer in self.market.participants
-
-
-
-
-
 
     def get_proposer_slot_gains(self, proposers: list[Cluster]) -> list[int]:
         """
@@ -113,10 +115,89 @@ class Runner:
         """
         return [DEFAULT_PROPOSER_SLOT_VALUE] * len(proposers)
 
-    def process_epoch(self, market: Market):
+    def process_epoch(self):
         """
         Process one single epoch of the simulation.
         """
-        raise NotImplementedError
 
+        # Pay interest on locked capital:
+        self.pay_interest_on_capital()
 
+        # Run the auction and process bribery payments and losses/gains from
+        # lost/gained/forfeited slots
+        self.process_market()
+
+        updating_participants = self.get_participants_who_update()
+
+        # Have participants update their bids
+        self.update_behaviours(updating_participants)
+
+    def get_participants_who_update(self, *, randomness_source: Optional[Random] = None) -> list[Cluster]:
+        """
+        returns the list of participants who actually may update their behaviour (i.e. Bid).
+        This is called once per epoch.
+        """
+        if randomness_source is None:
+            randomness_source = self.randomness_source
+        participants = self.participants
+        return [c for c in participants if randomness_source.randint(0, 100) == 0]
+
+    @property
+    def participants(self):
+        return self.market.participants
+
+    @property
+    def balance_sheets(self):
+        return self.market.balance_sheets
+
+    def pay_interest_on_capital(self, *, interest_rate: float = None):
+        if interest_rate is None:
+            interest_rate = self.locked_capital_cost_per_epoch
+        for balance in self.balance_sheets.values():
+            balance.capital_cost += balance.capital_locked * interest_rate
+
+    def process_market(self):
+        reveal_side, miss_side = self.market.sample_sides()
+        winner, payments = self.market.get_auction_winner(reveal_side=reveal_side, miss_side=miss_side)
+        bribe_taker = self.last_slot_proposer
+        balance_sheets = self.balance_sheets
+        proposer_slot_value = self.proposer_slot_value
+
+        # pay bribes
+        for payer, amount in payments.items():
+            balance_sheets[payer].payed += amount
+            balance_sheets[bribe_taker].received += amount
+        # number of extra slots gained / lost for each side.
+        # We need to initialize all relevant keys for the dict in order to be able to use += and -= below.
+        net_slots: dict[Cluster, int] = {c: 0 for c in miss_side + reveal_side}
+        if winner == 'miss':
+            next_last_slot_proposer = miss_side[-1]
+            net_slots[bribe_taker] = -1  # for forfeiting the slot
+            for c in miss_side:
+                net_slots[c] += 1
+            for c in reveal_side:
+                net_slots[c] -= 1
+        elif winner == 'reveal':
+            next_last_slot_proposer = reveal_side[-1]
+            # net_slots stays at an all-0 dict. The reason is that we care about the difference
+            # to the situation where there is no bribery market
+        else:
+            raise RuntimeError("get_auction_winner returned neither 'miss' nor 'reveal'")
+
+        # Set next auctions bribe-taker
+        self.last_slot_proposer = next_last_slot_proposer
+
+        # account for net cost of gained/lost slots.
+        for c, slots_gained_or_lost in net_slots.items():
+            if slots_gained_or_lost > 0:
+                balance_sheets[c].extra_slot_earnings += slots_gained_or_lost * proposer_slot_value
+            elif slots_gained_or_lost < 0:
+                balance_sheets[c].extra_slot_costs -= slots_gained_or_lost * proposer_slot_value
+
+    def update_behaviours(self, clusters: list[Cluster]):
+        # We first get all new_bids, then update all those bids.
+        # This is done so the updates don't yet affect the other get_best_bid results.
+        market = self.market
+        new_bids = {c: market.get_best_bid(c) for c in clusters}
+        for c, new_bid in new_bids.items():
+            market.place_bid(new_bid, c)
