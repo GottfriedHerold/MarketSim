@@ -150,8 +150,8 @@ def make_stake_distribution_from_map(stake_map: dict[int, int | Tuple[int, int]]
     If an entry stake_map[i] is a pair such a stake_map[10] == (5,2),
     this is interpreted as 5 clusters of size 10, with each having a  reputation factor of 2.
 
-    randomness_source is used as the default randomness source to sample from the set of clusters
-    when using sample_cluster
+    default_randomness_source is used as the default randomness source to sample from the set of clusters
+    when using iterator or when using sample_cluster with no randomness_source provided.
 
     Example:
         stake_distribution = MakeStakeDistributionFromMap({10: (5,2), 20: (3,1), 100: 1})
@@ -161,8 +161,12 @@ def make_stake_distribution_from_map(stake_map: dict[int, int | Tuple[int, int]]
         clusters = stake_distribution.get_clusters()
 
         # samples from the cluster:
-        for c in stake_distribution.sample_cluster:
+        for c in stake_distribution.iterator:
             ... # infinite loop
+
+        # Alternatively:
+        for i in range(...):
+            c = stake_distribution.sample_cluster()
 
     NOTE: Once created, the returned stake_distributions' weights must not be changed.
     (This is because we cache the cumulative distribution, which we would need to update on change.
