@@ -2,7 +2,6 @@ from abc import ABC, abstractmethod
 from itertools import accumulate
 from random import Random
 from typing import Iterator, Optional, Tuple
-
 """
 This file defines the Cluster class, which is used to represent a cluster of validators.
 In the context our our bribery market, these clusters are the market participants.
@@ -43,7 +42,10 @@ class Cluster:
         """
         raise NotImplementedError
 
-    def __init__(self, number_of_validators: int = 1, *, reputation_factor: int | None = None):
+    def __init__(self,
+                 number_of_validators: int = 1,
+                 *,
+                 reputation_factor: int | None = None):
         self.number_of_validators = number_of_validators
 
         # For the passed reputation_factor, we default to None rather than 1.
@@ -101,7 +103,9 @@ class StakeDistribution(ABC):
         ...
 
     @abstractmethod
-    def new_iterator(self, randomness_source: Optional[Random] = None) -> Iterator[Cluster]:
+    def new_iterator(
+            self,
+            randomness_source: Optional[Random] = None) -> Iterator[Cluster]:
         """
         Generator that yields a cluster at random, weighted by stake.
         Note that this is a generator expression, i.e. uses yield.
@@ -131,7 +135,7 @@ class StakeDistribution(ABC):
             return self._sample_cluster
 
     @abstractmethod
-    def sample_cluster(self, *, randomness_source: Random = None):
+    def sample_cluster(self, *, randomness_source: Random = None) -> Cluster:
         """
         Samples a cluster with probability weighted by stake size.
 
@@ -139,10 +143,11 @@ class StakeDistribution(ABC):
         """
 
 
-def make_stake_distribution_from_map(stake_map: dict[int, int | Tuple[int, int]],
-                                     *,
-                                     default_randomness_source: Optional[Random] = None,
-                                     reputation_factor: int = 1) -> StakeDistribution:
+def make_stake_distribution_from_map(
+        stake_map: dict[int, int | Tuple[int, int]],
+        *,
+        default_randomness_source: Optional[Random] = None,
+        reputation_factor: int = 1) -> StakeDistribution:
     """
     Creates a stake distribution from a map {cluster_size -> how many clusters of this size exist}
     If an entry stake_map[i] is a pair such a stake_map[10] == (5,2),
@@ -212,20 +217,23 @@ def make_stake_distribution_from_map(stake_map: dict[int, int | Tuple[int, int]]
             self.stake_map = stake_map
             clusters = []  # We will set self.cluster = clusters below
 
-            r = Random() if default_randomness_source is None else default_randomness_source
+            r = Random(
+            ) if default_randomness_source is None else default_randomness_source
             self._sample_cluster = self.new_iterator(r)
             for cluster_size, count in stake_map.items():
                 if isinstance(count, int):
                     clusters += [
-                        ClusterWithTotalStake(number_of_validators=cluster_size,
-                                              reputation_factor=reputation_factor)
+                        ClusterWithTotalStake(
+                            number_of_validators=cluster_size,
+                            reputation_factor=reputation_factor)
                         for _ in range(count)
                     ]
                 else:
                     assert len(count) == 2  # sequence of 2 ints
                     clusters += [
-                        ClusterWithTotalStake(number_of_validators=cluster_size,
-                                              reputation_factor=count[1])
+                        ClusterWithTotalStake(
+                            number_of_validators=cluster_size,
+                            reputation_factor=count[1])
                         for _ in range(count[0])
                     ]
             clusters.sort()
@@ -237,7 +245,10 @@ def make_stake_distribution_from_map(stake_map: dict[int, int | Tuple[int, int]]
             ClusterWithTotalStake.total_number_of_validators = sum(
                 [c.number_of_validators for c in clusters])
 
-        def get_clusters(self) -> list[Cluster]:  # actually a list[ClusterWithTotalStake] for some local type
+        def get_clusters(
+            self
+        ) -> list[
+                Cluster]:  # actually a list[ClusterWithTotalStake] for some local type
             return self.clusters
 
         # Note: custom_randomness_source, given to this function, is independent of
@@ -248,17 +259,24 @@ def make_stake_distribution_from_map(stake_map: dict[int, int | Tuple[int, int]]
         # custom_sampler = SD.new_cluster_sampler(..., randomness_source = r2)
         # In this construction, the intended behaviour is that
         # default_sampler uses r1, custom_sampler uses r2
-        def new_iterator(self, randomness_source: Optional[Random] = None) -> Iterator[Cluster]:
+        def new_iterator(
+                self,
+                randomness_source: Optional[Random] = None
+        ) -> Iterator[Cluster]:
             # NOTE: randomness_source shadows name given to make_stake_distribution_from_map.
             # This is unfortunate, but hard to avoid.
-            r: Random = randomness_source if randomness_source is not None else Random()
+            r: Random = randomness_source if randomness_source is not None else Random(
+            )
             while True:
                 yield r.choices(self.clusters,
                                 cum_weights=self.cluster_sizes_cumulated)[0]
 
-        def sample_cluster(self, *, randomness_source: Random = None):
+        def sample_cluster(self,
+                           *,
+                           randomness_source: Random = None) -> Cluster:
             if randomness_source is None:
                 return next(self.iterator)
-            return randomness_source.choices(self.clusters, cum_weights=self.cluster_sizes_cumulated)[0]
+            return randomness_source.choices(
+                self.clusters, cum_weights=self.cluster_sizes_cumulated)[0]
 
     return NewStakeDistribution()
