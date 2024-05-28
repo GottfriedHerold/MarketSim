@@ -262,7 +262,6 @@ class Market(ABC):
         """
         if old_bid is None and new_bid is None:
             return 0, 0, 0
-        ...
 
     @abstractmethod
     def get_best_bid(self, cluster: Cluster, *,
@@ -404,3 +403,14 @@ class DummyMarket(Market):
     ) -> Tuple[str, dict[Cluster, int | float]]:
         # Just answer at random
         return randomness_source.choice(("miss", "reveal")), {}
+
+
+class SecondPriceAuctionBid(Bid):
+    # TODO: Add data fields that are needed to describe a bid for the concret auction mechanism that we are using.
+    pass
+
+
+class SecondPriceMarket(Market):
+    # TODO: Add implementation of _determine_auction_winner, get_best_bid, cost_for_bid
+    # (NOTE: Those functions take inputs of type SecondPrirceAuctionBid instead of Bid)
+    pass
