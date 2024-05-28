@@ -139,8 +139,6 @@ class StakeDistribution(ABC):
         """
 
 
-
-
 def make_stake_distribution_from_map(stake_map: dict[int, int | Tuple[int, int]],
                                      *,
                                      default_randomness_source: Optional[Random] = None,
