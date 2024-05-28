@@ -250,7 +250,7 @@ class Market(ABC):
         ...
 
     @abstractmethod
-    def get_best_bid(self, cluster: Cluster) -> Bid:
+    def get_best_bid(self, cluster: Cluster, randomness_source: Random) -> Bid:
         """
         Returns the best (or close-to-best) bid (in terms of *expected* net gains) for the provided
         cluster assuming that all other clusters do not change their standing bids.
@@ -353,7 +353,7 @@ class DummyMarket(Market):
             return 1, 0, 1
         return 1, 10, 5
 
-    def get_best_bid(self, cluster: Cluster) -> Bid:
+    def get_best_bid(self, cluster: Cluster, *, randomness_source: Random) -> Bid:
         return Bid()
 
     def _determine_auction_winner(self, reveal_side: list[Cluster], miss_side: list[Cluster],

@@ -35,12 +35,13 @@ class Runner:
     locked_capital_cost_per_epoch: float
     market: Market
     randomness_source: Random  # defaults to Random()
+    default_randomness_source: Optional[Random]  # may be None. If not None, equal to the above.
     last_slot_proposer: Cluster
     proposer_slot_value = DEFAULT_PROPOSER_SLOT_VALUE
 
     def __init__(self, market: Market, *, locked_capital_cost_per_epoch: float,
-                 randomness_source: Random = None, initial_last_slot_proposer: Optional[Cluster] = None,
-                 proposer_slot_value = None):
+                 default_randomness_source: Random = None, initial_last_slot_proposer: Optional[Cluster] = None,
+                 proposer_slot_value: Optional[int | float] = None):
         """
         initialize an instance of Runner, which holds the state of our simulation (including a market state).
         Note that the separation of the Runner's state and the Market's state is somewhat fuzzy and not really
@@ -54,6 +55,7 @@ class Runner:
         market is mandatory and should have a type (derived from) Market.
         locked_capital_cost_per_epoch is used to set the per-epoch interest rate on capital cost.
         (TODO: Using None should take a default value)
+        proposer_slot_value may be used to override the default value of a proposer slot.
         initial_last_slot_proposer is the initial last-slot proposer. If set to None, it is sampled randomly.
         randomness_source is the source of randomness used in the simulation. None selects a default.
         Note that when derandomizing everything, a randomness source must be provided to each of
@@ -77,10 +79,11 @@ class Runner:
             self.proposer_slot_value = proposer_slot_value
 
         # randomness source:
-        if randomness_source is None:
+        if default_randomness_source is None:
             self.randomness_source = Random()
         else:
-            self.randomness_source = randomness_source
+            self.randomness_source = default_randomness_source
+        self.default_randomness_source = default_randomness_source
 
         # if no initial_last_slot_proposer is given, choose one randomly
         if initial_last_slot_proposer is None:
@@ -158,8 +161,9 @@ class Runner:
             balance.capital_cost += balance.capital_locked * interest_rate
 
     def process_market(self):
-        reveal_side, miss_side = self.market.sample_sides()
-        winner, payments = self.market.get_auction_winner(reveal_side=reveal_side, miss_side=miss_side)
+        reveal_side, miss_side = self.market.sample_sides(randomness_source=self.default_randomness_source)
+        winner, payments = self.market.get_auction_winner(reveal_side=reveal_side, miss_side=miss_side,
+                                                          randomness_source=self.default_randomness_source)
         bribe_taker = self.last_slot_proposer
         balance_sheets = self.balance_sheets
         proposer_slot_value = self.proposer_slot_value
@@ -199,6 +203,6 @@ class Runner:
         # We first get all new_bids, then update all those bids.
         # This is done so the updates don't yet affect the other get_best_bid results.
         market = self.market
-        new_bids = {c: market.get_best_bid(c) for c in clusters}
+        new_bids = {c: market.get_best_bid(c, randomness_source=self.randomness_source) for c in clusters}
         for c, new_bid in new_bids.items():
             market.place_bid(new_bid, c)
