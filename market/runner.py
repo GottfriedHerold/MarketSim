@@ -1,8 +1,8 @@
 import random
-from typing import Optional, Dict
+from typing import Optional
 from random import Random
 
-from .market import Cluster, Market, Bid
+from .market import Cluster, Market
 
 
 # Arbitrary constant. This is the default value in terms of MEV + issuance that
@@ -140,7 +140,8 @@ class Runner:
         if randomness_source is None:
             randomness_source = self.randomness_source
         participants = self.participants
-        return [c for c in participants if randomness_source.randint(0, 100) == 0]
+        # dummy implementation: Choose each cluster with probability 1%
+        return [c for c in participants if randomness_source.randint(0, 99) == 0]
 
     @property
     def participants(self):
