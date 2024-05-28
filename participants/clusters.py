@@ -82,6 +82,9 @@ class StakeDistribution(ABC):
 
     NOTE: When sampling a proposer, we return a cluster rather than a validator, because we only
     care about which cluster the proposer belongs to -- we don't (need to) model validators at all.
+
+    NOTE: Currently, an existing StakeDistribution must not be modified after creation.
+    (This limitation might be lifted in the future)
     """
 
     @abstractmethod
@@ -98,11 +101,11 @@ class StakeDistribution(ABC):
         ...
 
     @abstractmethod
-    def new_cluster_sampler(self, randomness_source: Optional[Random] = None) -> Iterator[Cluster]:
+    def new_iterator(self, randomness_source: Optional[Random] = None) -> Iterator[Cluster]:
         """
         Generator that yields a cluster at random, weighted by stake.
         Note that this is a generator expression, i.e. uses yield.
-        new_cluster_sampler allows to create a new sample that embeds a randomness source.
+        new_cluster_sampler allows to create a new sampler that embeds a randomness source.
         If a user just wants to use the "default", randomness source, they
         may want to use sample_cluster instead.
         """
@@ -111,7 +114,7 @@ class StakeDistribution(ABC):
     _sample_cluster: Iterator[Cluster]  # Default sampler
 
     @property
-    def sample_cluster(self) -> Iterator[Cluster]:
+    def iterator(self) -> Iterator[Cluster]:
         """
         An iterator that that samples a cluster according to the stake distribution.
         Note that this samples with replacement, so for any StakeDistribution sd, a loop such as
@@ -124,13 +127,23 @@ class StakeDistribution(ABC):
         if hasattr(self, "_sample_cluster"):
             return self._sample_cluster
         else:
-            self._sample_cluster = self.new_cluster_sampler(randomness_source=None)
+            self._sample_cluster = self.new_iterator(randomness_source=None)
             return self._sample_cluster
+
+    @abstractmethod
+    def sample_cluster(self, *, randomness_source: Random = None):
+        """
+        Samples a cluster with probability weighted by stake size.
+
+        If randomness_source is None, we use a default.
+        """
+
+
 
 
 def make_stake_distribution_from_map(stake_map: dict[int, int | Tuple[int, int]],
                                      *,
-                                     randomness_source: Optional[Random] = None,
+                                     default_randomness_source: Optional[Random] = None,
                                      reputation_factor: int = 1) -> StakeDistribution:
     """
     Creates a stake distribution from a map {cluster_size -> how many clusters of this size exist}
@@ -150,6 +163,10 @@ def make_stake_distribution_from_map(stake_map: dict[int, int | Tuple[int, int]]
         # samples from the cluster:
         for c in stake_distribution.sample_cluster:
             ... # infinite loop
+
+    NOTE: Once created, the returned stake_distributions' weights must not be changed.
+    (This is because we cache the cumulative distribution, which we would need to update on change.
+    We currently have no API for such updates)
     """
 
     # We implement make_stake_distribution_from_map by creating a new class NewStakeDistribution derived from
@@ -193,8 +210,8 @@ def make_stake_distribution_from_map(stake_map: dict[int, int | Tuple[int, int]]
             self.stake_map = stake_map
             clusters = []  # We will set self.cluster = clusters below
 
-            r = Random() if randomness_source is None else randomness_source
-            self._sample_cluster = self.new_cluster_sampler(r)
+            r = Random() if default_randomness_source is None else default_randomness_source
+            self._sample_cluster = self.new_iterator(r)
             for cluster_size, count in stake_map.items():
                 if isinstance(count, int):
                     clusters += [
@@ -229,12 +246,17 @@ def make_stake_distribution_from_map(stake_map: dict[int, int | Tuple[int, int]]
         # custom_sampler = SD.new_cluster_sampler(..., randomness_source = r2)
         # In this construction, the intended behaviour is that
         # default_sampler uses r1, custom_sampler uses r2
-        def new_cluster_sampler(self, randomness_source: Optional[Random] = None) -> Iterator[Cluster]:
+        def new_iterator(self, randomness_source: Optional[Random] = None) -> Iterator[Cluster]:
             # NOTE: randomness_source shadows name given to make_stake_distribution_from_map.
             # This is unfortunate, but hard to avoid.
             r: Random = randomness_source if randomness_source is not None else Random()
             while True:
                 yield r.choices(self.clusters,
                                 cum_weights=self.cluster_sizes_cumulated)[0]
+
+        def sample_cluster(self, *, randomness_source: Random = None):
+            if randomness_source is None:
+                return next(self.iterator)
+            return randomness_source.choices(self.clusters, cum_weights=self.cluster_sizes_cumulated)[0]
 
     return NewStakeDistribution()

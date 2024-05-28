@@ -264,9 +264,9 @@ class Market(ABC):
         by default, we use the randomness source from stake_dist itself via stake_dist.sample_cluster.
         """
         if randomness_source is None:
-            sampler = self.stake_dist.sample_cluster
+            sampler = self.stake_dist.iterator
         else:
-            sampler = self.stake_dist.new_cluster_sampler(randomness_source=randomness_source)
+            sampler = self.stake_dist.new_iterator(randomness_source=randomness_source)
         reveal_side = list(islice(sampler, self.EPOCH_SIZE))
         miss_side = list(islice(sampler, self.EPOCH_SIZE))
         return reveal_side, miss_side

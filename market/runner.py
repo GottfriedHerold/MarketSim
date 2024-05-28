@@ -84,7 +84,7 @@ class Runner:
 
         # if no initial_last_slot_proposer is given, choose one randomly
         if initial_last_slot_proposer is None:
-            self.last_slot_proposer = next(market.stake_dist.new_cluster_sampler(self.randomness_source))
+            self.last_slot_proposer = next(market.stake_dist.new_iterator(self.randomness_source))
         else:
             self.last_slot_proposer = initial_last_slot_proposer
 

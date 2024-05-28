@@ -46,7 +46,7 @@ def test_make_stake_distribution_from_map():
     #
     # Here, we just get a list.
     number_of_samples = 50000
-    some_sampled_clusters = list(itertools.islice(SD.sample_cluster, number_of_samples))
+    some_sampled_clusters = list(itertools.islice(SD.iterator, number_of_samples))
 
     assert len(some_sampled_clusters) == number_of_samples
     for c in some_sampled_clusters:
@@ -74,8 +74,8 @@ def test_make_stake_distribution_from_map():
     RNG1 = random.Random(23525)  # 23525 is the randomness seed
     RNG2 = random.Random(23525)  # independent generator with same seed
 
-    sampler1 = SD.new_cluster_sampler(RNG1)
-    sampler2 = SD.new_cluster_sampler(RNG2)
+    sampler1 = SD.new_iterator(RNG1)
+    sampler2 = SD.new_iterator(RNG2)
 
     # Get 100 samples from sampler1, then 200 from sampler2, then 100 from sampler1.
     samples1 = list(itertools.islice(sampler1, 100))
