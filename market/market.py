@@ -2,12 +2,12 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from itertools import islice
 from random import Random
-from typing import Any, Optional, Tuple
+from typing import Optional, Tuple
 
 from participants import Cluster, StakeDistribution
 
 
-# @dataclass(ky_only=True) allows to initialize a Balance like
+# @dataclass(kw_only=True) allows to initialize a Balance like
 # balance = Balance(payed=10, received=20).
 # We only allow key-value passing, because passing a list of numbers would just be confusing what they mean.
 # and the order is not canonical.
@@ -274,7 +274,7 @@ class Market(ABC):
         return reveal_side, miss_side
 
     def get_auction_winner(self, *, reveal_side: list[Cluster] = None, miss_side: list[Cluster],
-                           randomness_source: Optional[Random] = None) -> Tuple[str, dict[Cluster, int|float]]:
+                           randomness_source: Optional[Random] = None) -> Tuple[str, dict[Cluster, int | float]]:
         """
         Determines the winner of the bidding auction according to the bribery market's rules.
         The bidding is between the reveal_side and the miss_side.
@@ -323,6 +323,8 @@ class Market(ABC):
         Returns either the string literal "miss" or "reveal" as the first returned value
         The second returned value is a dict of payments {cluster -> amount paid}
         for the amounts that are paid to the last slot proposer.
+
+        NOTE: randomness_source may be assumed to be not None.
         """
 
     def get_balance_sheet(self, cluster: Cluster) -> Balance:
