@@ -264,11 +264,13 @@ class Market(ABC):
         by default, we use the randomness source from stake_dist itself via stake_dist.sample_cluster.
         """
         if randomness_source is None:
-            sampler = self.stake_dist.iterator
+            reveal_side = list(islice(self.stake_dist.iterator, self.EPOCH_SIZE))
+            miss_side = list(islice(self.stake_dist.iterator, self.EPOCH_SIZE))
         else:
-            sampler = self.stake_dist.new_iterator(randomness_source=randomness_source)
-        reveal_side = list(islice(sampler, self.EPOCH_SIZE))
-        miss_side = list(islice(sampler, self.EPOCH_SIZE))
+            reveal_side = [self.stake_dist.sample_cluster(randomness_source=randomness_source)
+                           for _ in range(self.EPOCH_SIZE)]
+            miss_side = [self.stake_dist.sample_cluster(randomness_source=randomness_source)
+                         for _ in range(self.EPOCH_SIZE)]
         return reveal_side, miss_side
 
     def get_auction_winner(self, *, reveal_side: list[Cluster] = None, miss_side: list[Cluster],
@@ -313,12 +315,14 @@ class Market(ABC):
 
     @abstractmethod
     def _determine_auction_winner(self, reveal_side: list[Cluster], miss_side: list[Cluster],
-                                  randomness_source: Random) -> Tuple[str, dict[Cluster, int|float]]:
+                                  randomness_source: Random) -> Tuple[str, dict[Cluster, int | float]]:
         """
         actual implementation of get_auction_winner.
         This needs to be overridden in a base class.
 
-        Returns either "miss" or "reveal".
+        Returns either the string literal "miss" or "reveal" as the first returned value
+        The second returned value is a dict of payments {cluster -> amount paid}
+        for the amounts that are paid to the last slot proposer.
         """
 
     def get_balance_sheet(self, cluster: Cluster) -> Balance:
@@ -351,6 +355,6 @@ class DummyMarket(Market):
         return Bid()
 
     def _determine_auction_winner(self, reveal_side: list[Cluster], miss_side: list[Cluster],
-                                  randomness_source: Random) -> Tuple[str, dict[Cluster, int|float]]:
+                                  randomness_source: Random) -> Tuple[str, dict[Cluster, int | float]]:
         # Just answer at random
-        return randomness_source.choice(("miss", "reveal"))
+        return randomness_source.choice(("miss", "reveal")), {}
