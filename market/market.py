@@ -62,8 +62,9 @@ class Balance:
         Also, it may happen that a participant gains a slot (randomly, essentially) by
         being in the winning A_miss - side of the bet, even if that participated never actually actively engaged.
         """
-        return (self.received - self.paid - self.capital_cost - self.transaction_costs
-                + self.extra_slot_earnings - self.extra_slot_costs - self.reputation_cost)
+        return (self.received - self.paid - self.capital_cost -
+                self.transaction_costs + self.extra_slot_earnings -
+                self.extra_slot_costs - self.reputation_cost)
 
     @property
     def reputation_cost(self):
@@ -199,7 +200,8 @@ class Market(ABC):
         if epoch_size is not None:
             self.EPOCH_SIZE = epoch_size
         self.stake_dist = stake_dist
-        self._participants = stake_dist.get_clusters()  # Use a property-setter to inform derived classes?
+        self._participants = stake_dist.get_clusters(
+        )  # Use a property-setter to inform derived classes?
 
         # Initialize balance_sheets. We need to set self.balance_sheets[c] for every c
         # because calls to self.place_bide below would fail otherwise.
@@ -263,7 +265,8 @@ class Market(ABC):
         ...
 
     @abstractmethod
-    def get_best_bid(self, cluster: Cluster, randomness_source: Random) -> Bid:
+    def get_best_bid(self, cluster: Cluster, *,
+                     randomness_source: Random) -> Bid:
         """
         Returns the best (or close-to-best) bid (in terms of *expected* net gains) for the provided
         cluster assuming that all other clusters do not change their standing bids.
@@ -275,18 +278,25 @@ class Market(ABC):
         randomness_source: Optional[Random] = None
     ) -> Tuple[list[Cluster], list[Cluster]]:
         """
-        Samples the two sides of the bidding market in order (reveal, miss).
-        random_source is used to select the randomness source for the sampling;
-        by default, we use the randomness source from stake_dist itself via stake_dist.sample_cluster.
+        Samples the two sides of the bidding market in order (reveal, miss). There is one set of 32 future validators for reveal last bit of randao, vs 32 validators for missing it.
+        randomness_source is used to select the randomness source for the sampling;
+        by default, we use the randomness source from stake_dist itself via stake_dist.iterator.
         """
         if randomness_source is None:
-            reveal_side = list(islice(self.stake_dist.iterator, self.EPOCH_SIZE))
+            reveal_side = list(
+                islice(self.stake_dist.iterator, self.EPOCH_SIZE))
             miss_side = list(islice(self.stake_dist.iterator, self.EPOCH_SIZE))
         else:
-            reveal_side = [self.stake_dist.sample_cluster(
-                randomness_source=randomness_source) for _ in range(self.EPOCH_SIZE)]
-            miss_side = [self.stake_dist.sample_cluster(
-                randomness_source=randomness_source) for _ in range(self.EPOCH_SIZE)]
+            reveal_side = [
+                self.stake_dist.sample_cluster(
+                    randomness_source=randomness_source)
+                for _ in range(self.EPOCH_SIZE)
+            ]
+            miss_side = [
+                self.stake_dist.sample_cluster(
+                    randomness_source=randomness_source)
+                for _ in range(self.EPOCH_SIZE)
+            ]
         return reveal_side, miss_side
 
     def get_auction_winner(
@@ -355,6 +365,7 @@ class Market(ABC):
 
         NOTE: randomness_source may be assumed to be not None.
         """
+        ...
 
     def get_balance_sheet(self, cluster: Cluster) -> Balance:
         """
