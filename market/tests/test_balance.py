@@ -11,11 +11,11 @@ def test_import():
 
 def test_balance():
     # other values set to 0.
-    b = Balance(received=20, payed=10, capital_cost=4)
+    b = Balance(received=20, paid=10, capital_cost=4)
     assert b.total_balance == 6
     b.received += 5
     assert b.total_balance == 11
-    b.payed += 20
+    b.paid += 20
     assert b.total_balance == -9
     assert b.reputation_factor == 1  # NOTE: 1==1.0 in Python
 
@@ -73,12 +73,12 @@ def _test_market(market: type):
     assert all(c in m.participants for c in reveal_side)
     assert all(c in m.participants for c in miss_side)
 
-    initial_balances = {c: Balance(payed=5) for c in stake_dist.get_clusters()}
+    initial_balances = {c: Balance(paid=5) for c in stake_dist.get_clusters()}
 
     m = market(stake_dist=stake_dist, initial_balances=initial_balances, pay_for_initial_bids=True)
     assert m.EPOCH_SIZE == 32
     assert all(m.standing_bids[c] is None for c in m.participants)
-    assert all(m.balance_sheets[c].payed==5 for c in m.participants)
+    assert all(m.balance_sheets[c].paid == 5 for c in m.participants)
 
     some_participant = m.participants[0]
     some_bid = Bid2()

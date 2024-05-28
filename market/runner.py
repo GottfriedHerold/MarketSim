@@ -170,7 +170,7 @@ class Runner:
 
         # pay bribes
         for payer, amount in payments.items():
-            balance_sheets[payer].payed += amount
+            balance_sheets[payer].paid += amount
             balance_sheets[bribe_taker].received += amount
         # number of extra slots gained / lost for each side.
         # We need to initialize all relevant keys for the dict in order to be able to use += and -= below.

@@ -27,18 +27,18 @@ class Balance:
     # NOTE: Entries without a value (i.e. type hints) in this are **not** just comments, because the @dataclass
     # actually parses this and generates code from it.
 
-    payed: int = 0  # total amount paid to other (as bribes)
-    received: int = 0  # total amount received from others (as bribes)
-    capital_locked: int = 0  # current amount of capital that needs to be locked down in order to participate
-    capital_cost: int = 0  # total accumulated capital cost.
+    paid: int | float = 0  # total amount paid to other (as bribes)
+    received: int | float = 0  # total amount received from others (as bribes)
+    capital_locked: int | float = 0  # current amount of capital that needs to be locked down in order to participate
+    capital_cost: int | float = 0  # total accumulated capital cost.
     # capital_cost should increment by a certain fraction, representing an interest rate,
     # of the current value of capital_locked each time step.
-    transaction_costs: int = 0  # total accumulated transaction costs.
-    extra_slot_earnings: int = 0  # total extra earnings that the participant has gained from participating (or not)
+    transaction_costs: int | float = 0  # total accumulated transaction costs.
+    extra_slot_earnings: int | float = 0  # total extra earnings that the participant has gained from participating (or not)
     # in the market by gaining extra slots. Note that this does not include bribe payments.
-    extra_slot_costs: int = 0  # total losses that the participant has incurred from other
+    extra_slot_costs: int | float = 0  # total losses that the participant has incurred from other
     # participants "stealing" the slot.
-    reputation: int = 0  # reputation value that the participant has from participating in the market
+    reputation: int | float = 0  # reputation value that the participant has from participating in the market
     reputation_factor: float | int = 1  # how much this participant values reputation. This is essentially
     # copied from the participant's data itself. We keep this copy around to simplify things.
     # (it also would allow making this dynamic)
@@ -62,9 +62,8 @@ class Balance:
         Also, it may happen that a participant gains a slot (randomly, essentially) by
         being in the winning A_miss - side of the bet, even if that participated never actually actively engaged.
         """
-        return (self.received - self.payed - self.capital_cost -
-                self.transaction_costs + self.extra_slot_earnings -
-                self.extra_slot_costs - self.reputation_cost)
+        return (self.received - self.paid - self.capital_cost - self.transaction_costs
+                + self.extra_slot_earnings - self.extra_slot_costs - self.reputation_cost)
 
     @property
     def reputation_cost(self):
@@ -122,7 +121,7 @@ class Market(ABC):
         assert self.balance_sheets[sender].participated
         assert self.balance_sheets[receiver].participated
 
-        self.balance_sheets[sender].payed += amount
+        self.balance_sheets[sender].paid += amount
         self.balance_sheets[receiver].received += amount
 
     def place_bid(self, bid: Bid, cluster: Cluster):
@@ -200,8 +199,7 @@ class Market(ABC):
         if epoch_size is not None:
             self.EPOCH_SIZE = epoch_size
         self.stake_dist = stake_dist
-        self._participants = stake_dist.get_clusters(
-        )  # Use a property-setter to inform derived classes?
+        self._participants = stake_dist.get_clusters()  # Use a property-setter to inform derived classes?
 
         # Initialize balance_sheets. We need to set self.balance_sheets[c] for every c
         # because calls to self.place_bide below would fail otherwise.
@@ -282,27 +280,20 @@ class Market(ABC):
         by default, we use the randomness source from stake_dist itself via stake_dist.sample_cluster.
         """
         if randomness_source is None:
-            reveal_side = list(
-                islice(self.stake_dist.iterator, self.EPOCH_SIZE))
+            reveal_side = list(islice(self.stake_dist.iterator, self.EPOCH_SIZE))
             miss_side = list(islice(self.stake_dist.iterator, self.EPOCH_SIZE))
         else:
-            reveal_side = [
-                self.stake_dist.sample_cluster(
-                    randomness_source=randomness_source)
-                for _ in range(self.EPOCH_SIZE)
-            ]
-            miss_side = [
-                self.stake_dist.sample_cluster(
-                    randomness_source=randomness_source)
-                for _ in range(self.EPOCH_SIZE)
-            ]
+            reveal_side = [self.stake_dist.sample_cluster(
+                randomness_source=randomness_source) for _ in range(self.EPOCH_SIZE)]
+            miss_side = [self.stake_dist.sample_cluster(
+                randomness_source=randomness_source) for _ in range(self.EPOCH_SIZE)]
         return reveal_side, miss_side
 
     def get_auction_winner(
         self,
         *,
         reveal_side: list[Cluster] = None,
-        miss_side: list[Cluster],
+        miss_side: list[Cluster] = None,
         randomness_source: Optional[Random] = None
     ) -> Tuple[str, dict[Cluster, int | float]]:
         """
