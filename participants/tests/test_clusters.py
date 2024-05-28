@@ -69,6 +69,20 @@ def test_make_stake_distribution_from_map():
     assert abs(num_20 - 60/210) < 0.05
     assert abs(num_100 - 100/210) < 0.05
 
+    # redo with sample_clusters() API
+
+    for randomness_source in [None, random.Random(), random.Random(123)]:
+        size_distribution = {10: 0, 20: 0, 100: 0}
+        for i in range(number_of_samples):
+            sample = SD.sample_cluster(randomness_source=randomness_source)
+            size_distribution[sample.number_of_validators] += 1
+        num_10 = size_distribution[10] / number_of_samples
+        num_20 = size_distribution[20] / number_of_samples
+        num_100 = size_distribution[100] / number_of_samples
+        assert abs(num_10 - 50 / 210) < 0.05
+        assert abs(num_20 - 60 / 210) < 0.05
+        assert abs(num_100 - 100 / 210) < 0.05
+
     # Check that using a deterministic RNG works:
 
     RNG1 = random.Random(23525)  # 23525 is the randomness seed
