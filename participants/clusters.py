@@ -45,7 +45,7 @@ class Cluster:
     def __init__(self,
                  number_of_validators: int = 1,
                  *,
-                 reputation_factor: int | None = None):
+                 reputation_factor: int | None = None): 
         self.number_of_validators = number_of_validators
 
         # For the passed reputation_factor, we default to None rather than 1.
