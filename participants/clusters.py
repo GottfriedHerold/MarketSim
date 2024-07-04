@@ -45,7 +45,7 @@ class Cluster:
     def __init__(self,
                  number_of_validators: int = 1,
                  *,
-                 reputation_factor: int | None = None): 
+                 reputation_factor: int | None = None):
         self.number_of_validators = number_of_validators
 
         # For the passed reputation_factor, we default to None rather than 1.
@@ -57,12 +57,13 @@ class Cluster:
         if reputation_factor is not None:
             self.reputation_factor = reputation_factor
 
-    def __lt__(self, other):
+    def __lt__(self, other: "Cluster"):
         """
         comparison operator < between clusters.
         This is solely provided to allow sorting, which helps write test and example code.
+
+        We compare lexicograpically by number of validators, then by reputation_factor.
         """
-        other: Cluster
         if self.number_of_validators == other.number_of_validators:
             return self.reputation_factor < other.reputation_factor
         else:
