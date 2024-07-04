@@ -6,7 +6,6 @@ from typing import Optional, Tuple
 
 from participants import Cluster, StakeDistribution
 
-
 # @dataclass(kw_only=True) allows to initialize a Balance like
 # balance = Balance(payed=10, received=20).
 # We only allow key-value passing, because passing a list of numbers would just be confusing what they mean.
@@ -69,7 +68,6 @@ class Balance:
     @property
     def reputation_cost(self):
         return self.reputation * self.reputation_factor
-
 
 class Bid:
     """
@@ -301,6 +299,7 @@ class Market(ABC):
     def get_auction_winner(
         self,
         *,
+        last_slot_proposer: Cluster,
         reveal_side: list[Cluster] = None,
         miss_side: list[Cluster] = None,
         randomness_source: Optional[Random] = None
@@ -347,12 +346,12 @@ class Market(ABC):
         assert all(c in self.participants for c in reveal_side)
         assert all(c in self.participants for c in miss_side)
         return self._determine_auction_winner(reveal_side, miss_side,
-                                              real_randomness_source)
+                                              real_randomness_source, last_slot_proposer=last_slot_proposer)
 
     @abstractmethod
     def _determine_auction_winner(
             self, reveal_side: list[Cluster], miss_side: list[Cluster],
-            randomness_source: Random
+            randomness_source: Random, last_slot_proposer: Cluster
     ) -> Tuple[str, dict[Cluster, int | float]]:
         """
         actual implementation of get_auction_winner.
@@ -399,7 +398,7 @@ class DummyMarket(Market):
 
     def _determine_auction_winner(
             self, reveal_side: list[Cluster], miss_side: list[Cluster],
-            randomness_source: Random
+            randomness_source: Random, last_slot_proposer: Cluster
     ) -> Tuple[str, dict[Cluster, int | float]]:
         # Just answer at random
         return randomness_source.choice(("miss", "reveal")), {}
