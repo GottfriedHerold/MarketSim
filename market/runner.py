@@ -13,10 +13,9 @@ from .market import Cluster, Market
 # than this.
 DEFAULT_PROPOSER_SLOT_VALUE = 100
 
-
 class Runner:
     """
-    This class actually run our simulation.
+    This class actually runs our simulation.
     """
 
     # Having an amount x of capital locked incurs a cost
@@ -29,18 +28,28 @@ class Runner:
     # allows locked capital to engage in DeFi, although in a limited way.
     # cf. the notes on Settlement from https://notes.ethereum.org/Q8QrXyUOT9Kk0MLtUcesgQ
     # NOTE2: capital locked is denominated in ETH, so the holder may still get value from
-    # just holding it. Typically, this is a significant part of the reason why stakers stake in the first place.
+    # just holding it due to ETH's value raising relative to other other currency.
+    # Typically, this is a significant part of the reason why stakers stake in the first place.
     #
-    # For that reason, the ETH-denominated expected revenue from staking (over simply holding) ETH is reasonable
-    locked_capital_cost_per_epoch: float
-    market: Market
+    # Given that the participants ARE already staking, we can expect that this is a meaningful baseline for them as far as engaging in DeFi is concerned,
+    # so the notion of oppurtunity cost is relative to using the capital for staking.
+    # Taking the ETH-denominated expected revenue from staking (over simply holding) ETH is a reasonable default value for locked_capital_cost_per_epoch,
+    # assuming the locked_capital "just sits there". If we assume that the above-mentioned tricks are used, the value of locked_capital_cost_per_epoch
+    # should be set much lower.
+    locked_capital_cost_per_epoch: float  # Value can be either set here or in __init__
+    
+    market: Market  # 
     randomness_source: Random  # defaults to Random()
     default_randomness_source: Optional[Random]  # may be None. If not None, equal to the above.
     last_slot_proposer: Cluster
     proposer_slot_value = DEFAULT_PROPOSER_SLOT_VALUE
 
-    def __init__(self, market: Market, *, locked_capital_cost_per_epoch: float,
-                 default_randomness_source: Random = None, initial_last_slot_proposer: Optional[Cluster] = None,
+    def __init__(self,
+                 market: Market,
+                 *,
+                 locked_capital_cost_per_epoch: Optional[float],
+                 default_randomness_source: Random = None,
+                 initial_last_slot_proposer: Optional[Cluster] = None,
                  proposer_slot_value: Optional[int | float] = None):
         """
         initialize an instance of Runner, which holds the state of our simulation (including a market state).
@@ -67,9 +76,8 @@ class Runner:
 
         self.market = market
 
-        # Will cause an error if we don't set a default value for locked_capital_cost_per_epoch
-        if hasattr(type(self), "locked_capital_cost_per_epoch"):
-            if locked_capital_cost_per_epoch is None:
+        # Will cause an error if we neither set a default value for locked_capital_cost_per_epoch nor pass one to __init__
+        if not hasattr(type(self), "locked_capital_cost_per_epoch") and locked_capital_cost_per_epoch is None:
                 raise ValueError("Must set locked_capital_cost_per_epoch")
 
         if locked_capital_cost_per_epoch is not None:

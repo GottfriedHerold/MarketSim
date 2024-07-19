@@ -260,14 +260,10 @@ def make_stake_distribution_from_map(
         # custom_sampler = SD.new_cluster_sampler(..., randomness_source = r2)
         # In this construction, the intended behaviour is that
         # default_sampler uses r1, custom_sampler uses r2
-        def new_iterator(
-                self,
-                randomness_source: Optional[Random] = None
-        ) -> Iterator[Cluster]:
+        def new_iterator(self, randomness_source: Optional[Random] = None) -> Iterator[Cluster]:
             # NOTE: randomness_source shadows name given to make_stake_distribution_from_map.
             # This is unfortunate, but hard to avoid.
-            r: Random = randomness_source if randomness_source is not None else Random(
-            )
+            r: Random = randomness_source if randomness_source is not None else Random()
             while True:
                 yield r.choices(self.clusters,
                                 cum_weights=self.cluster_sizes_cumulated)[0]
