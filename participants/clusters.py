@@ -110,7 +110,7 @@ class StakeDistribution(ABC):
         """
         Generator that yields a cluster at random, weighted by stake.
         Note that this is a generator expression, i.e. uses yield.
-        new_cluster_sampler allows to create a new sampler that embeds a randomness source.
+        this allows to create a new sampler that embeds a randomness source.
         If a user just wants to use the "default", randomness source, they
         may want to use sample_cluster instead.
         """
@@ -125,7 +125,7 @@ class StakeDistribution(ABC):
         Note that this samples with replacement, so for any StakeDistribution sd, a loop such as
     
         for cluster in sd.sample_cluster:
-            ...
+            ...  # do something with cluster
         
         is an infinite loop.
         """
@@ -218,8 +218,7 @@ def make_stake_distribution_from_map(
             self.stake_map = stake_map
             clusters = []  # We will set self.cluster = clusters below
 
-            r = Random(
-            ) if default_randomness_source is None else default_randomness_source
+            r = Random() if default_randomness_source is None else default_randomness_source
             self._sample_cluster = self.new_iterator(r)
             for cluster_size, count in stake_map.items():
                 if isinstance(count, int):
@@ -246,10 +245,8 @@ def make_stake_distribution_from_map(
             ClusterWithTotalStake.total_number_of_validators = sum(
                 [c.number_of_validators for c in clusters])
 
-        def get_clusters(
-            self
-        ) -> list[
-                Cluster]:  # actually a list[ClusterWithTotalStake] for some local type
+        # Note: Returned type actually a list[ClusterWithTotalStake] for some local type
+        def get_clusters(self) -> list[Cluster]:
             return self.clusters
 
         # Note: custom_randomness_source, given to this function, is independent of

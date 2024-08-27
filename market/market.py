@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from collections import namedtuple
 from dataclasses import dataclass
 from itertools import islice
 from random import Random
@@ -122,7 +123,7 @@ class Market(ABC):
         self.balance_sheets[sender].paid += amount
         self.balance_sheets[receiver].received += amount
 
-    def place_bid(self, bid: Bid|None, cluster: Cluster):
+    def place_bid(self, bid: Bid | None, cluster: Cluster):
         """
         Call place_to_bid to have the given cluster place a bid.
         This replaces any previous bid that the cluster had active.
@@ -134,7 +135,8 @@ class Market(ABC):
         cost_for_bid.
 
         Note: derived classes may overwrite this method.
-        If bid is None and the currently active bid is also None, this method does nothing. We required derived classes to preserve that behavior.
+        If bid is None and the currently active bid is also None, this method does nothing.
+        We required derived classes to preserve that behavior.
         """
 
         # This place_bid method just implements some common logic that a derived class may call via super()
@@ -214,7 +216,7 @@ class Market(ABC):
         # The reason is that self.place_bid may look at the previously active bid
         # to compute transaction costs.
         # self.standing_bids[c] == None means that c has no active bid.
-        self.standing_bids = {c: None for c in self._participants}  # May be override below
+        self.standing_bids = {c: None for c in self._participants}  # May be overridden below
 
         # NOTE: self.place_bid(bid, c) is required to be a no-op if bid is None 
         # and the previous value for self.standing_bids[c] is None. The latter is guaranteed by the line above.
@@ -236,13 +238,15 @@ class Market(ABC):
     def participants(self):
         return self._participants
 
+    CostForBid = namedtuple("CostForBid", ["transaction_cost", "capital_cost", "new_reputation"])
+
     @abstractmethod
     def cost_for_bid(self,
                      old_bid: Bid | None,
-                     new_bid: Bid | None) -> Tuple[int|float, int|float, int|float]:
+                     new_bid: Bid | None) -> CostForBid:
         """
         This is called whenever a cluster places a new bid to replace the old one.
-        It returns the cost for the cluster placing a bid as a 3-tuple
+        It returns the cost for the cluster placing a bid as a namedtuple
         (transaction_cost, capital_cost, new_reputation)
         
         If old_bid is None and new_bid is None, this function must return 0, 0, 0.
