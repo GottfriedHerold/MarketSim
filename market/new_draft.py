@@ -17,6 +17,7 @@ class MyBid(Bid):
     minimum_gain: int | float = 0
     "minimum amount by which the bribes from the miss side have to exceed the reveal side in order to sway towards missing the slot"
 
+    # Gotti: I guess this is for the case when the participant is the last-slot proposer.
     valuation_of_own_slots: int | float = 0
     "how much the participant values getting slots in the next epoch on its own"
 
@@ -33,9 +34,11 @@ class MyBid(Bid):
 
 
 class MyMarket(Market):
-    def __init__ (self, standing_bids: dict[Cluster, MyBid|None]):
+    # Gotti: TODO: don't do this.
+    def __init__ (self, standing_bids: dict[Cluster, MyBid | None]):
         self.standing_bids = standing_bids
         
+    # Gotti: TODO: Replace by single function? Add docstring
     def reveal_payments(self, reveal_side: list[Cluster]) -> float:
         quant_reveal = [self.standing_bids[c].willing_to_pay for c in reveal_side if self.standing_bids[c] is not None]
         quant_reveal_sorted = sorted(quant_reveal)

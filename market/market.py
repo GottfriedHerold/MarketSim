@@ -265,7 +265,7 @@ class Market(ABC):
         This function must be overwritten by a derived class.
         """
         if old_bid is None and new_bid is None:
-            return 0, 0, 0
+            return Market.CostForBid(0, 0, 0)
 
     @abstractmethod
     def get_best_bid(self, cluster: Cluster, *,
@@ -279,7 +279,8 @@ class Market(ABC):
     def sample_sides(self, 
                      randomness_source: Optional[Random] = None) -> Tuple[list[Cluster], list[Cluster]]:
         """
-        Samples the two sides of the bidding market in order (reveal, miss). There is one set of 32 future validators for reveal randao, vs another set of 32 validators for missing it.
+        Samples the two sides of the bidding market in order (reveal, miss).
+        There is one set of 32 future validators for reveal RANDAO vs another set of 32 validators for missing it.
         randomness_source is used to select the randomness source for the sampling;
         by default, we use the randomness source from stake_dist itself via stake_dist.iterator.
         """
@@ -353,7 +354,7 @@ class Market(ABC):
                                   miss_side: list[Cluster],
                                   randomness_source: Random,
                                   last_slot_proposer: Cluster
-    ) -> Tuple[str, dict[Cluster, int | float]]:
+                                  ) -> Tuple[str, dict[Cluster, int | float]]:
         """
         actual implementation of get_auction_winner.
         This needs to be overridden in a base class.
@@ -403,14 +404,3 @@ class DummyMarket(Market):
     ) -> Tuple[str, dict[Cluster, int | float]]:
         # Just answer at random; nobody pays anything.
         return randomness_source.choice(("miss", "reveal")), {}
-
-
-class SecondPriceAuctionBid(Bid):
-    # TODO: Add data fields that are needed to describe a bid for the concret auction mechanism that we are using.
-    pass
-
-
-class SecondPriceMarket(Market):
-    # TODO: Add implementation of _determine_auction_winner, get_best_bid, cost_for_bid
-    # (NOTE: Those functions take inputs of type SecondPrirceAuctionBid instead of Bid)
-    pass
