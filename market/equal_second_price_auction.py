@@ -25,10 +25,6 @@ class EqualSecondPriceBid(Bid):
         "minimum amount by which the bribes from the miss side have to exceed the reveal side in order to sway towards missing the slot"
         return self.reputation_value
 
-
-    # valuation_of_own_slots: int | float = 0
-    "how much the last-slot proposer values getting slots in the next epoch on its own"
-
     # from an economic point of view, this should be the same as willing_to_pay. So we force everyone to do just that.
     @property
     def valuation_of_own_slots(self) -> int | float:
@@ -109,12 +105,16 @@ class EqualSecondPriceMarket(Market):
         # The proposer's choice of reveal vs. miss affects the proposer itself by directly assigning some slots to itself.
         # Note that these do include the slot the lost slot proposer may intentionally miss, hence the own_slots_gained_by_revealing starts at 1.
 
-
         payments: dict[Cluster, int | float] = {}
         # After the last slot proposer has decided what to do, we define how much each participant will pay.
 
-        reveal_side_bids = [self.standing_bids[c] for c in reveal_side]
+        # Add the last proposer's bid to the list of bids to account for the fact that the last proposer gains one more slot in the reveal side
+        # due to the fact they don't (intentionally) miss the slot.
+        
+        reveal_side_bids = [self.standing_bids[c] for c in reveal_side] + [last_proposer_bid]
         miss_side_bids = [self.standing_bids[c] for c in miss_side]
+
+        # Remove duplicates from reveal_side and miss_side.
        
         # Note: The lenghts of these are possibly smaller than the above, because None-bids are filtered out (rather than replaced by 0)
         reveal_side_bid_values = [bid.willing_to_pay for bid in reveal_side_bids if bid is not None]  
